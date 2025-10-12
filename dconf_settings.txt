@@ -1,0 +1,249 @@
+[apps/seahorse/listing]
+keyrings-selected=['secret-service:///org/freedesktop/secrets/collection/Default_5fkeyring']
+
+[apps/seahorse/windows/key-manager]
+height=476
+width=1119
+
+[apps/update-manager]
+check-new-release-ignore='noble'
+first-run=false
+launch-count=2
+launch-time=int64 1760006747
+
+[com/ubuntu/update-notifier]
+release-check-time=uint32 1759400074
+
+[org/gnome/control-center]
+last-panel='sound'
+
+[org/gnome/desktop/app-folders]
+folder-children=['Utilities', 'YaST', '4be0bbe4-a850-46cf-a8d9-36956850e054', 'b9b629aa-b833-4e98-9cf6-b02a9ee83f6a', '6b1975e3-dafc-470d-9bdd-c19cd2c15c71']
+
+[org/gnome/desktop/app-folders/folders/4be0bbe4-a850-46cf-a8d9-36956850e054]
+apps=['nsight-compute-2024.1.1.desktop', 'nsys-ui-2023.4.4.desktop', 'nvidia-settings.desktop', 'nvvp.desktop']
+name='プログラミング'
+
+[org/gnome/desktop/app-folders/folders/6b1975e3-dafc-470d-9bdd-c19cd2c15c71]
+apps=['designer-qt5.desktop', 'linguist-qt5.desktop', 'assistant-qt5.desktop']
+name='プログラミング'
+
+[org/gnome/desktop/app-folders/folders/Utilities]
+apps=['gnome-abrt.desktop', 'gnome-system-log.desktop', 'nm-connection-editor.desktop', 'org.gnome.baobab.desktop', 'org.gnome.Connections.desktop', 'org.gnome.DejaDup.desktop', 'org.gnome.Dictionary.desktop', 'org.gnome.DiskUtility.desktop', 'org.gnome.eog.desktop', 'org.gnome.Evince.desktop', 'org.gnome.FileRoller.desktop', 'org.gnome.fonts.desktop', 'org.gnome.seahorse.Application.desktop', 'org.gnome.tweaks.desktop', 'org.gnome.Usage.desktop', 'vinagre.desktop']
+categories=['X-GNOME-Utilities']
+name='X-GNOME-Utilities.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/YaST]
+categories=['X-SuSE-YaST']
+name='suse-yast.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/b9b629aa-b833-4e98-9cf6-b02a9ee83f6a]
+apps=['software-properties-gtk.desktop', 'update-manager.desktop', 'snap-store_ubuntu-software.desktop']
+name='Preferences'
+
+[org/gnome/desktop/datetime]
+automatic-timezone=true
+
+[org/gnome/desktop/input-sources]
+mru-sources=[('ibus', 'mozc-jp'), ('xkb', 'jp')]
+per-window=false
+sources=[('ibus', 'mozc-jp'), ('xkb', 'jp')]
+xkb-options=@as []
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+gtk-theme='Yaru-purple-dark'
+icon-theme='Yaru-purple'
+
+[org/gnome/desktop/notifications]
+application-children=['update-manager', 'vivaldi-stable', 'slack', 'org-gnome-terminal', 'gnome-control-center', 'gnome-power-panel', 'apport-gtk', 'snap-store-snap-store', 'vivaldi-chlhfimpdkhmbdodcjjmeiplljjcmikd-default', 'code', 'org-gnome-nautilus', 'firefox-firefox']
+
+[org/gnome/desktop/notifications/application/apport-gtk]
+application-id='apport-gtk.desktop'
+
+[org/gnome/desktop/notifications/application/code]
+application-id='code.desktop'
+
+[org/gnome/desktop/notifications/application/firefox-firefox]
+application-id='firefox_firefox.desktop'
+
+[org/gnome/desktop/notifications/application/gnome-control-center]
+application-id='gnome-control-center.desktop'
+
+[org/gnome/desktop/notifications/application/gnome-power-panel]
+application-id='gnome-power-panel.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-nautilus]
+application-id='org.gnome.Nautilus.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-terminal]
+application-id='org.gnome.Terminal.desktop'
+
+[org/gnome/desktop/notifications/application/slack]
+application-id='slack.desktop'
+
+[org/gnome/desktop/notifications/application/snap-store-snap-store]
+application-id='snap-store_snap-store.desktop'
+
+[org/gnome/desktop/notifications/application/update-manager]
+application-id='update-manager.desktop'
+
+[org/gnome/desktop/notifications/application/vivaldi-chlhfimpdkhmbdodcjjmeiplljjcmikd-default]
+application-id='vivaldi-chlhfimpdkhmbdodcjjmeiplljjcmikd-Default.desktop'
+
+[org/gnome/desktop/notifications/application/vivaldi-stable]
+application-id='vivaldi-stable.desktop'
+
+[org/gnome/desktop/peripherals/touchpad]
+speed=0.33088235294117641
+two-finger-scrolling-enabled=true
+
+[org/gnome/desktop/privacy]
+report-technical-problems=true
+
+[org/gnome/desktop/screensaver]
+lock-delay=uint32 0
+
+[org/gnome/desktop/search-providers]
+sort-order=['org.gnome.Contacts.desktop', 'org.gnome.Documents.desktop', 'org.gnome.Nautilus.desktop']
+
+[org/gnome/desktop/session]
+idle-delay=uint32 900
+
+[org/gnome/evince/default]
+window-ratio=(1.0078613182826044, 0.7126567844925884)
+
+[org/gnome/evolution-data-server]
+migrated=true
+network-monitor-gio-name=''
+
+[org/gnome/gedit/plugins]
+active-plugins=['spell', 'docinfo', 'openlinks', 'filebrowser', 'modelines', 'sort']
+
+[org/gnome/gedit/plugins/filebrowser]
+root='file:///'
+tree-view=true
+virtual-root='file:///home/kokko'
+
+[org/gnome/gedit/preferences/editor]
+scheme='Yaru-dark'
+
+[org/gnome/gedit/preferences/ui]
+show-tabs-mode='auto'
+
+[org/gnome/gedit/state/window]
+bottom-panel-size=140
+side-panel-active-page='GeditWindowDocumentsPanel'
+side-panel-size=200
+size=(900, 700)
+state=87168
+
+[org/gnome/gnome-system-monitor]
+current-tab='resources'
+maximized=false
+network-total-in-bits=false
+show-dependencies=false
+show-whose-processes='user'
+window-state=(700, 625, 26, 23)
+
+[org/gnome/gnome-system-monitor/disktreenew]
+col-6-visible=true
+col-6-width=0
+
+[org/gnome/gnome-system-monitor/proctree]
+columns-order=[0, 1, 2, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
+sort-col=8
+sort-order=0
+
+[org/gnome/nautilus/preferences]
+default-folder-viewer='icon-view'
+search-filter-time-type='last_modified'
+
+[org/gnome/nautilus/window-state]
+initial-size=(890, 550)
+maximized=false
+sidebar-width=189
+
+[org/gnome/nm-applet/eap/58a3d5f0-6443-45cd-9a28-b2a71a14f2a4]
+ignore-ca-cert=true
+ignore-phase2-ca-cert=false
+
+[org/gnome/settings-daemon/plugins/media-keys]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0]
+binding=''
+command='bash /home/kokko/autoscroll.sh'
+name='オートスクロール'
+
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-timeout=3600
+sleep-inactive-ac-type='nothing'
+
+[org/gnome/shell]
+app-picker-layout=[{'org.gnome.Calculator.desktop': <{'position': <0>}>, 'org.gnome.gedit.desktop': <{'position': <1>}>, 'gnome-system-monitor.desktop': <{'position': <2>}>, 'Utilities': <{'position': <3>}>, 'yelp.desktop': <{'position': <4>}>, 'firefox_firefox.desktop': <{'position': <5>}>, 'setup-mozc.desktop': <{'position': <6>}>, '6b1975e3-dafc-470d-9bdd-c19cd2c15c71': <{'position': <7>}>, 'b9b629aa-b833-4e98-9cf6-b02a9ee83f6a': <{'position': <8>}>, 'gnome-session-properties.desktop': <{'position': <9>}>, 'gnome-language-selector.desktop': <{'position': <10>}>, 'gnome-control-center.desktop': <{'position': <11>}>, 'software-properties-drivers.desktop': <{'position': <12>}>, 'org.gnome.PowerStats.desktop': <{'position': <13>}>, 'jstest-gtk.desktop': <{'position': <14>}>, '4be0bbe4-a850-46cf-a8d9-36956850e054': <{'position': <15>}>}]
+favorite-apps=['vivaldi-stable.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'slack.desktop', 'vivaldi-chlhfimpdkhmbdodcjjmeiplljjcmikd-Default.desktop', 'code.desktop']
+had-bluetooth-devices-setup=true
+welcome-dialog-last-shown-version='42.9'
+
+[org/gnome/shell/extensions/dash-to-dock]
+dash-max-icon-size=48
+dock-fixed=true
+dock-position='LEFT'
+extend-height=true
+multi-monitor=true
+
+[org/gnome/shell/extensions/ding]
+icon-size='standard'
+show-home=true
+
+[org/gnome/shell/keybindings]
+show-screenshot-ui=['<Shift><Super>s']
+
+[org/gnome/software]
+check-timestamp=int64 1759476678
+update-notification-timestamp=int64 1759476680
+
+[org/gnome/system/location]
+enabled=true
+
+[org/gnome/terminal/legacy]
+new-tab-position='next'
+
+[org/gnome/terminal/legacy/profiles:/:b1dcc9dd-5262-4d8d-a863-c897e6d979b9]
+background-color='rgb(255,255,255)'
+foreground-color='rgb(23,20,33)'
+use-theme-colors=true
+
+[org/gtk/gtk4/settings/file-chooser]
+date-format='regular'
+location-mode='path-bar'
+show-hidden=false
+show-size-column=true
+show-type-column=true
+sidebar-width=201
+sort-column='name'
+sort-directories-first=false
+sort-order='ascending'
+type-format='category'
+window-size=(906, 608)
+
+[org/gtk/settings/color-chooser]
+custom-colors=[(0.022266666666666692, 0.058374774774774804, 0.55666666666666675, 1.0)]
+selected-color=(true, 0.022266666666666692, 0.058374774774774804, 0.55666666666666675, 1.0)
+
+[org/gtk/settings/file-chooser]
+date-format='regular'
+location-mode='path-bar'
+show-hidden=false
+show-size-column=true
+show-type-column=true
+sidebar-width=189
+sort-column='name'
+sort-directories-first=true
+sort-order='ascending'
+type-format='category'
+window-position=(2314, 66)
+window-size=(1203, 902)
