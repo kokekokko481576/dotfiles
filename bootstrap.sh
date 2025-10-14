@@ -1,17 +1,22 @@
 #!/bin/bash
-#
-# My Ultimate Dotfiles Bootstrap Script
-#
 
-# --- 途中でエラーが起きたら、そこでストップする安全装置 ---
 set -e
 
 echo "🚀 最強の環境構築、全自動で開始するぜ！"
 
-# --- 1. 必要なアプリをインストールする ---
-echo "--- STEP 1: 必要なアプリをインストール中... ---"
+# --- 1. 共通で必要なアプリをインストールする ---
+echo "--- STEP 1: 共通アプリをインストール中... ---"
 sudo apt update
 sudo apt install -y git zsh curl
+
+# --- もしWSLじゃなかったら、Linux専用アプリもインストール ---
+if ! grep -qi "microsoft" /proc/version; then
+  echo "--- [追加] Linux専用アプリをインストール中... ---"
+  # ここに将来的にzellijとかfzfとかを追加していくと最強になれる！
+  # sudo apt install -y zellij fzf
+fi
+
+# (ここから下のSTEP 2〜5は変更なし！)
 
 # --- 2. dotfilesリポジトリをダウンロード (もし無ければ) ---
 if [ ! -d "$HOME/dotfiles" ]; then

@@ -1,45 +1,56 @@
 #!/bin/bash
-#
-# dotfiles setup script
-#
 
 DOTFILES_DIR=~/dotfiles
 
-echo "最強の環境構築を開始するぜ！"
+echo "💪 魂をPCに宿らせるぜ！"
 
-# --- リンクするファイルのリスト ---
-# 書式: "dotfiles内のパス" "本来あるべき場所のパス"
-declare -a link_pairs=(
-  "$DOTFILES_DIR/.zshrc"                     "$HOME/.zshrc"
-  "$DOTFILES_DIR/.zpreztorc"                 "$HOME/.zpreztorc"
-  "$DOTFILES_DIR/.p10k.zsh"                  "$HOME/.p10k.zsh"
-  "$DOTFILES_DIR/.gitconfig"                 "$HOME/.gitconfig"
+# --- 共通でリンクするファイルのリスト ---
+declare -a common_links=(
+  "$DOTFILES_DIR/.zshrc"      "$HOME/.zshrc"
+  "$DOTFILES_DIR/.zpreztorc"  "$HOME/.zpreztorc"
+  "$DOTFILES_DIR/.p10k.zsh"   "$HOME/.p10k.zsh"
+  "$DOTFILES_DIR/.gitconfig"  "$HOME/.gitconfig"
+)
+
+# --- Linuxだけでリンクするファイルのリスト ---
+declare -a linux_only_links=(
   "$DOTFILES_DIR/config/mozc"                "$HOME/.config/mozc"
   "$DOTFILES_DIR/config/Code/User/settings.json"  "$HOME/.config/Code/User/settings.json"
   "$DOTFILES_DIR/config/Code/User/snippets"      "$HOME/.config/Code/User/snippets"
   "$DOTFILES_DIR/config/user-dirs.dirs"      "$HOME/.config/user-dirs.dirs"
 )
 
-# --- ループで一個ずつお掃除＆リンク作成 ---
-for i in "${!link_pairs[@]}"; do
-  # 2つで1ペアなので、偶数番目だけ処理する
+# --- 共通リンクを実行 ---
+for i in "${!common_links[@]}"; do
   if (( i % 2 == 0 )); then
-    source_path="${link_pairs[i]}"
-    link_target="${link_pairs[i+1]}"
-
-    # 1. まず、古いリンクやファイルを強制的に削除 (-fで確認なし！)
+    source_path="${common_links[i]}"
+    link_target="${common_links[i+1]}"
     rm -rf "$link_target"
-
-    # 2. 途中のディレクトリがなければ作成
     mkdir -p "$(dirname "$link_target")"
-    
-    # 3. 新しいリンクを作成！
     ln -s "$source_path" "$link_target"
-    
-    echo "✅ $link_target をリンクし直したぜ！"
+    echo "✅ [共通] $link_target をリンクしたぜ！"
   fi
 done
 
+# --- もしWSLじゃなかったら、Linux専用リンクも実行 ---
+# /proc/versionに"microsoft"の文字がなければ、普通のLinuxだと判断する
+if ! grep -qi "microsoft" /proc/version; then
+  echo "---"
+  echo "🐧 これは普通のLinuxだね！専用設定を追加するよ！"
+  for i in "${!linux_only_links[@]}"; do
+    if (( i % 2 == 0 )); then
+      source_path="${linux_only_links[i]}"
+      link_target="${linux_only_links[i+1]}"
+      rm -rf "$link_target"
+      mkdir -p "$(dirname "$link_target")"
+      ln -s "$source_path" "$link_target"
+      echo "✅ [Linux専用] $link_target をリンクしたぜ！"
+    fi
+  done
+else
+  echo "---"
+  echo "🐧 これはWSLだね！専用設定はスキップするよ。"
+fi
+
 echo ""
-echo "💪 全部のリンクを再構築完了！"
-echo "次はターミナルを再起動して、魂が受け継がれているか確認しよう！"
+echo "✨ リンク作業完了！"
