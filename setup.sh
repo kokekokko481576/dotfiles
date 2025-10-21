@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# setup script (v3.2: Hybrid File Generator - Corrected Paths)
+# setup script (v3.3: Hybrid File Generator - bash dialect filter)
 #
 
 DOTFILES_DIR=~/dotfiles
 
-echo "💪 魂をPCに宿らせるぜ！（v3.2 ハイブリッド生成モード）"
+echo "💪 魂をPCに宿らせるぜ！（v3.3 bash方言フィルター搭載型）"
 
 # --- 1. 最強の .zshrc を自動生成する ---
 echo "--- .zshrcを自動生成中... ---"
@@ -17,13 +17,16 @@ rm -f ~/.zshrc # まず、古い.zshrcがあれば削除
   echo ""
   
   if [ -f ~/.bashrc ]; then
-    echo "# --- 既存の .bashrc (ROSの設定など) を読み込み ---"
-    cat ~/.bashrc
+    echo "# --- 既存の .bashrc (ROSの設定など) から安全な設定のみを読み込み ---"
+    
+    # ★★★ここが最終進化！★★★
+    # shopt, complete, bash_completion を含む行は除外して取り込む
+    grep -vE '^(source )?/usr/share/bash-completion/bash_completion' ~/.bashrc | grep -vE 'shopt|complete'
+    # ★★★★★★★★★★★★★★★
+    
     echo ""
   fi
 
-  # ★★★ここを君の構成に修正！★★★
-  # 君のzsh設定（Preztoのローダーとか）をまるごと取り込む
   if [ -f "$DOTFILES_DIR/zsh/.zshrc" ]; then
     echo "# --- kokkoの最強ZSH設定 (Prezto, P10k) を読み込み ---"
     cat "$DOTFILES_DIR/zsh/.zshrc"
@@ -38,7 +41,9 @@ echo "✅ 最強の .zshrc が生成されたぜ！"
 # --- 2. 他の設定ファイル（.gitconfigなど）をシンボリックリンクする ---
 echo "--- 他の設定ファイルをリンク中... ---"
 
-# 安全にリンクを貼るための関数 (v3と同じ)
+# (ここから下の create_safe_link 関数と、それ以降の処理は、
+# この前の v3.2 のままでOK！変更なし！)
+
 create_safe_link() {
   source_path=$1
   link_target=$2
@@ -53,23 +58,18 @@ create_safe_link() {
 }
 
 # --- 共通でリンクするファイル ---
-# ★★★ここを君の構成に修正！★★★
 create_safe_link "$DOTFILES_DIR/zsh/.zpreztorc"  "$HOME/.zpreztorc"
 create_safe_link "$DOTFILES_DIR/zsh/.p10k.zsh"   "$HOME/.p10k.zsh"
 create_safe_link "$DOTFILES_DIR/git/.gitconfig"  "$HOME/.gitconfig"
-# ★★★★★★★★★★★★★★★★★★
 
 # --- WSLじゃなければ、Linux専用リンクも実行 ---
 if ! grep -qi "microsoft" /proc/version; then
   echo "---"
   echo "🐧 Linux専用設定をリンク中... ---"
-  
-  # ★★★ここを君の構成に修正！★★★
   create_safe_link "$DOTFILES_DIR/config/mozc"                "$HOME/.config/mozc"
   create_safe_link "$DOTFILES_DIR/vscode/settings.json"  "$HOME/.config/Code/User/settings.json"
   create_safe_link "$DOTFILES_DIR/vscode/snippets"      "$HOME/.config/Code/User/snippets"
   create_safe_link "$DOTFILES_DIR/config/user-dirs.dirs"      "$HOME/.config/user-dirs.dirs"
-  # ★★★★★★★★★★★★★★★★★★
 else
   echo "🐧 WSLなのでLinux専用設定はスキップします。"
 fi
