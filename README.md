@@ -9,6 +9,7 @@
 - **Zsh**: Prezto と Powerlevel10k を使ったモダンで高速なシェル環境
 - **Git**: エイリアスや署名設定など
 - **VSCode**: `settings.json`, `snippets`, 拡張機能リスト
+- **Neovim**: Luaベースのモダンな設定、LSP、LaTeX対応
 - **Linux Desktop**: GNOME Terminal, dconf, Mozc（日本語入力）など
 
 ## 🚀 セットアップ
@@ -31,8 +32,11 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/kokekokko481576/dotfiles
 # 依存パッケージのインストールやPreztoのセットアップ
 bash bootstrap.sh
 
-# 設定ファイルのシンボリックリンク作成
+# 基本的な設定ファイルのシンボリックリンク作成
 bash setup.sh
+
+# Neovimの設定をセットアップ
+bash setup_neovim.sh
 ```
 
 ## 📜 各スクリプトの役割
@@ -53,3 +57,11 @@ bash setup.sh
 - `~/.zshrc` や `~/.gitconfig` などをリンク
 - VSCodeの拡張機能を `vscode_extensions.txt` からインストール
 - （Linuxデスクトップの場合）`dconf` の設定を復元
+
+### `setup_neovim.sh`
+
+Neovimの設定ファイル (`~/.config/nvim`) のシンボリックリンクを作成します。
+
+## 📝 ドキュメント
+
+- **[neovim_manual/setup_log.md](neovim_manual/setup_log.md)**: Neovim環境の構築ログです。設定の経緯や技術的な判断が記録されています。
