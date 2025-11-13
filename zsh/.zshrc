@@ -25,6 +25,16 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 source /opt/ros/humble/setup.zsh
 
+
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+export GOOGLE_CLOUD_PROJECT="uoo-ship-project"
+export GOOGLE_CLOUD_LOCATION="asia-northeast1"
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/home/kokko/y/google-cloud-sdk/path.zsh.inc' ]; then . '/home/kokko/y/google-cloud-sdk/path.zsh.inc'; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f '/home/kokko/y/google-cloud-sdk/completion.zsh.inc' ]; then . '/home/kokko/y/google-cloud-sdk/completion.zsh.inc'; fi
