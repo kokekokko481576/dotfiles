@@ -24,14 +24,14 @@ rm -f ~/.zshrc # まず、古い.zshrcがあれば削除
   fi
 
   # ★★★ここが最終進化！★★★
-  # 2. 次に、既存の .bashrc (ROSの設定など) から安全な行だけを抽出！
-  if [ -f ~/.bashrc ]; then
-    echo "# --- 既存の .bashrc (ROSの設定など) から安全な設定のみを抽出 ---"
-    # export, alias, /opt/ros/のsource のみを取り出す
-    # shopt, complete, PS1, bash_completion などは全て無視！
-    grep -E '^(export|alias|source /opt/ros)' ~/.bashrc || echo "# .bashrcから安全な設定は見つかりませんでした。"
-    echo ""
-  fi
+  # --- 2. 既存の .bashrc からの設定読み込みを一時的に無効化 ---
+  # if [ -f ~/.bashrc ]; then
+  #   echo "# --- 既存の .bashrc (ROSの設定など) から安全な設定のみを抽出 ---"
+  #   # export, alias, /opt/ros/のsource のみを取り出す
+  #   # shopt, complete, PS1, bash_completion などは全て無視！
+  #   grep -E '^(export|alias)' ~/.bashrc || echo "# .bashrcから安全な設定は見つかりませんでした。"
+  #   echo ""
+  # fi
   # ★★★★★★★★★★★★★★★
   
 } >> ~/.zshrc # 出来上がった内容を ~/.zshrc に書き出す
