@@ -125,7 +125,7 @@ active-plugins=['spell', 'docinfo', 'openlinks', 'filebrowser', 'modelines', 'so
 [org/gnome/gedit/plugins/filebrowser]
 root='file:///'
 tree-view=true
-virtual-root='file:///home/kokko'
+virtual-root='file://$HOME'
 
 [org/gnome/gedit/preferences/editor]
 scheme='Yaru-dark'
@@ -175,7 +175,7 @@ custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybin
 
 [org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0]
 binding=''
-command='bash /home/kokko/autoscroll.sh'
+command='bash $HOME/autoscroll.sh'
 name='オートスクロール'
 
 [org/gnome/settings-daemon/plugins/power]
