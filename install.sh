@@ -8,6 +8,31 @@ echo -e "${COLOR_BLUE}================================${COLOR_RESET}"
 echo -e "${COLOR_GREEN}   Kokko's Dotfiles Installer   ${COLOR_RESET}"
 echo -e "${COLOR_BLUE}================================${COLOR_RESET}"
 
+# --- 依存パッケージのチェックとインストール ---
+check_dependencies() {
+    log_info "必要なパッケージをチェック中..."
+    
+    deps=("zsh" "git" "curl")
+    to_install=()
+
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            log_warn "$dep が見つかりません。"
+            to_install+=("$dep")
+        fi
+    done
+
+    if [ ${#to_install[@]} -ne 0 ]; then
+        log_info "不足しているパッケージ (${to_install[*]}) をインストールします..."
+        log_info "sudoパスワードを求められる場合があります👇"
+        sudo apt update
+        sudo apt install -y "${to_install[@]}"
+        log_success "インストール完了！"
+    else
+        log_info "依存パッケージはすべて揃っています。"
+    fi
+}
+
 show_menu() {
     echo "インストール方法を選んでね："
     echo "1) Recommended (全部入れる: Zsh, Neovim, VSCode)"
@@ -22,6 +47,9 @@ show_menu() {
 install_zsh() { bash "$DOTFILES_DIR/scripts/setup_zsh.sh"; }
 install_neovim() { bash "$DOTFILES_DIR/scripts/setup_neovim.sh"; }
 install_vscode() { bash "$DOTFILES_DIR/scripts/setup_vscode.sh"; }
+
+# --- メイン処理開始 ---
+check_dependencies
 
 while true; do
     show_menu
@@ -38,43 +66,26 @@ while true; do
             break
             ;;
         2)
-            # カスタムインストール（問答形式）
+            # カスタムインストール
             log_info "Starting Custom Install..."
-            
             if ask_yes_no "Zsh (Shell) の設定をインストールしますか？"; then
                 install_zsh
             fi
-            
             echo ""
             if ask_yes_no "Neovim (Editor) の設定をインストールしますか？"; then
                 install_neovim
             fi
-            
             echo ""
             if ask_yes_no "VSCode (Editor) の設定をインストールしますか？"; then
                 install_vscode
             fi
-            
             break
             ;;
-        3)
-            install_zsh
-            break
-            ;;
-        4)
-            install_neovim
-            break
-            ;;
-        5)
-            install_vscode
-            break
-            ;;
-        q)
-            exit 0
-            ;;
-        *)
-            log_error "無効な選択だぜ"
-            ;;
+        3) install_zsh; break ;;
+        4) install_neovim; break ;;
+        5) install_vscode; break ;;
+        q) exit 0 ;;
+        *) log_error "無効な選択だぜ" ;;
     esac
 done
 
