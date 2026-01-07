@@ -160,3 +160,38 @@
 - **理由:**
   - `dotfiles`で一元管理することで、設定のバックアップと復元が容易になる。
   - `setup_neovim.sh` を分離することで、Neovimを必要としない環境ではセットアップをスキップでき、モジュール性が向上する。
+
+## 7. Neovide GUIの視覚効果設定
+
+- **目的:** NeovideをGUIクライアントとして利用する際の、見た目や操作感を向上させるための視覚効果を有効にする。
+- **依頼内容:** ユーザーから提示された[Neovideの機能紹介ページ](https://neovide.dev/features.html)にあるような効果を適用したい。
+- **作業内容:**
+  1. **設定ファイルの特定:** Neovimの標準的なLua設定構成に従い、ユーザー設定が記述されている `~/dotfiles/config/nvim/lua/user/settings.lua` を編集対象として特定。
+  2. **設定の追加:** 以下のNeovide専用のグローバル変数を設定ファイルに追記。Neovide実行時のみ設定が適用されるよう、`if vim.g.neovide then ... end`ブロックで囲んだ。
+      - `vim.g.neovide_scroll_animation_length = 0.3` (スムーズスクロール)
+      - `vim.g.neovide_cursor_animation_length = 0.075` (カーソルアニメーション)
+      - `vim.g.neovide_cursor_vignette = 0.15` (カーソル周辺のVignette効果)
+      - `vim.g.neovide_transparency = 0.8` (ウィンドウの透過)
+- **結果:** NeovideでNeovimを開いた際に、スクロールやカーソルの動きが滑らかになり、ウィンドウが半透明になるなど、よりモダンな見た目と操作感が得られた。
+
+## 8. カーソルの視覚的フィードバック向上
+
+- **目的:** ターミナル上の`nvim`で、現在のカーソル位置をより分かりやすくするための視覚的な補助を追加する。
+- **背景:** Neovide GUIのカーソルアニメーション機能をターミナルで実現したいという要望があったが、技術的な制約から不可能であった。代替案として、カーソル行や単語をハイライトするプラグインを導入することになった。
+- **作業内容:**
+  1. **プラグインの選定:** 代替案として、カーソル行をハイライトする `theolivenbaum/neovim-cursorline` と、カーソル下の単語をハイライトする `theolivenbaum/neovim-cursorword` を選定。
+  2. **`packer.lua`の編集:** `~/dotfiles/config/nvim/lua/user/packer.lua` に、上記2つのプラグインを追加。`neovim-cursorline`については、有効化するための基本的な設定も追記した。
+  3. **プラグインのインストール:** `nvim --headless +PackerSync +qall` コマンドを実行し、新しいプラグインをインストールした。
+- **結果:** ターミナル上での`nvim`使用時に、現在のカーソル行と単語がハイライトされるようになり、編集中の位置の視認性が向上した。
+
+## 9. 起動時エラーの修正 (`nvim-cursorline` not found)
+
+- **問題:** Neovim起動時に `packer.nvim: Error running config for neovim-cursorline: ... module 'nvim-cursorline' not found` というエラーが発生する。
+- **原因:** 前回追加したプラグイン `'theolivenbaum/neovim-cursorline'` が、GitHub上に存在しないか、あるいはリポジトリ名が間違っていたため、`packer`によるインストールに失敗していた。その結果、`config`ブロック内の`require('nvim-cursorline')`が失敗し、エラーを引き起こしていた。また、関連して追加された`'theolivenbaum/neovim-cursorword'`も同様に存在しないリポジトリだった。
+- **調査:**
+  - `theolivenbaum`というユーザー名や`neovim-cursorline`というプラグイン名でWeb検索を行ったが、該当する有効なプラグインを見つけることができなかった。
+  - Neovimには、プラグインなしでカーソル行をハイライトする組み込み機能 `vim.opt.cursorline` が存在することを確認した。
+- **最終的な解決策:**
+  1.  **不要なプラグインの削除:** `packer.lua` から、原因となっていた `'theolivenbaum/neovim-cursorline'` と `'theolivenbaum/neovim-cursorword'` の2行を完全に削除。
+  2.  **組み込み機能の有効化:** `settings.lua` に `vim.opt.cursorline = true` を追記。これにより、プラグインに頼らず、Neovimの標準機能でカーソル行をハイライトするように変更。
+- **結果:** 起動時のエラーが完全に解消された。カーソル行のハイライト機能はNeovimの安定した組み込み機能によって提供されるようになり、よりシンプルで堅牢な設定になった。
