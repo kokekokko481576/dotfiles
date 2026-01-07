@@ -9,34 +9,64 @@ echo -e "${COLOR_GREEN}   Kokko's Dotfiles Installer   ${COLOR_RESET}"
 echo -e "${COLOR_BLUE}================================${COLOR_RESET}"
 
 show_menu() {
-    echo "インストールする項目を選んでね（1つずつ選んでね）"
-    echo "1) 全てインストール (Zsh, Neovim, VSCode)"
-    echo "2) Zsh設定のみ (Prezto + P10k + 分割設定)"
-    echo "3) Neovim設定のみ"
-    echo "4) VSCode設定のみ"
+    echo "インストール方法を選んでね："
+    echo "1) Recommended (全部入れる: Zsh, Neovim, VSCode)"
+    echo "2) Custom (ひとつずつ選ぶ)"
+    echo "3) Zsh only"
+    echo "4) Neovim only"
+    echo "5) VSCode only"
     echo "q) 終了"
 }
+
+# コンポーネントごとのセットアップ関数
+install_zsh() { bash "$DOTFILES_DIR/scripts/setup_zsh.sh"; }
+install_neovim() { bash "$DOTFILES_DIR/scripts/setup_neovim.sh"; }
+install_vscode() { bash "$DOTFILES_DIR/scripts/setup_vscode.sh"; }
 
 while true; do
     show_menu
     read -p "Selection: " choice
+    echo ""
+    
     case $choice in
         1)
-            bash "$DOTFILES_DIR/scripts/setup_zsh.sh"
-            bash "$DOTFILES_DIR/scripts/setup_neovim.sh"
-            bash "$DOTFILES_DIR/scripts/setup_vscode.sh"
+            # 全部入り
+            log_info "Starting Recommended Install..."
+            install_zsh
+            install_neovim
+            install_vscode
             break
             ;;
         2)
-            bash "$DOTFILES_DIR/scripts/setup_zsh.sh"
+            # カスタムインストール（問答形式）
+            log_info "Starting Custom Install..."
+            
+            if ask_yes_no "Zsh (Shell) の設定をインストールしますか？"; then
+                install_zsh
+            fi
+            
+            echo ""
+            if ask_yes_no "Neovim (Editor) の設定をインストールしますか？"; then
+                install_neovim
+            fi
+            
+            echo ""
+            if ask_yes_no "VSCode (Editor) の設定をインストールしますか？"; then
+                install_vscode
+            fi
+            
             break
             ;;
         3)
-            bash "$DOTFILES_DIR/scripts/setup_neovim.sh"
+            install_zsh
             break
             ;;
         4)
-            bash "$DOTFILES_DIR/scripts/setup_vscode.sh"
+            install_neovim
+            break
+            ;;
+        5)
+            install_vscode
             break
             ;;
         q)
@@ -48,5 +78,6 @@ while true; do
     esac
 done
 
-log_success "セットアップ完了！"
-echo "新しい設定を反映するには 'source ~/.zshrc' を実行するか、シェルを再起動してね✨"
+echo ""
+log_success "すべての処理が完了したよ！"
+echo "新しい設定を反映するにはシェルを再起動してね✨"
