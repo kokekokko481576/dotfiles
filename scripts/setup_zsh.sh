@@ -33,7 +33,6 @@ create_safe_link "$DOTFILES_ZSH/aliases.zsh" "$CONF_DIR/10_aliases.zsh"
 if ask_yes_no "ROS (Robot Operating System) の設定を有効にしますか？"; then
     create_safe_link "$DOTFILES_ZSH/ros.zsh" "$CONF_DIR/20_ros.zsh"
 else
-    # Noと言われたら、もしリンクがあれば削除する（無効化）
     if [ -L "$CONF_DIR/20_ros.zsh" ]; then
         rm "$CONF_DIR/20_ros.zsh"
         log_info "ROS設定を無効化しました。"
@@ -50,5 +49,22 @@ else
     fi
 fi
 
+# 4. デフォルトシェルの変更 (自動)
+TARGET_SHELL=$(which zsh)
+CURRENT_SHELL=$(getent passwd $USER | cut -d: -f7)
+
+if [ "$CURRENT_SHELL" != "$TARGET_SHELL" ]; then
+    echo ""
+    log_info "デフォルトシェルを Zsh ($TARGET_SHELL) に変更します..."
+    log_info "パスワードを求められる場合があります👇"
+    
+    if chsh -s "$TARGET_SHELL"; then
+        log_success "デフォルトシェルを Zsh に変更しました！"
+    else
+        log_error "シェルの変更に失敗しました。後で 'chsh -s \$(which zsh)' を試してね。"
+    fi
+else
+    log_info "デフォルトシェルは既に Zsh です。"
+fi
+
 log_success "Zsh setup complete!"
-echo "新しい設定を反映するには、ターミナルを再起動するか 'source ~/.zshrc' を実行してね！"
