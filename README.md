@@ -12,6 +12,7 @@ PCごとの差異を吸収しつつ、必要な設定を選んでインストー
 - **VSCode**: `settings.json`, スニペット, 拡張機能リスト
 - **LaTeX**: `.latexmkrc` などのビルド設定
 - **Git**: 基本的なエイリアスとユーザー設定
+- **ROS 2**: 環境構築・移行用のスクリプトとパッケージリスト
 
 ## 🚀 セットアップ
 
@@ -38,6 +39,17 @@ cd ~/dotfiles
 
 ※ 既存の設定ファイルがある場合は、自動的に `.bak` としてバックアップが作成されます。
 
+## 🤖 ROS 2 環境のセットアップ
+
+ROS 2 (Humble) 環境の構築や、別のPCへの移行には専用のスクリプトを使用します。
+
+```bash
+# 新しいPCで実行：ROS環境のインストールとワークスペースの復元
+./scripts/ros/install_env.sh
+```
+
+※ 移行元のPCで準備をする場合は `./scripts/ros/prepare_transfer.sh` を使用します。
+
 ## 🔄 環境の同期（Update）
 
 現在のPCの設定をリポジトリに取り込みたい（dotfilesを更新したい）場合は、以下のスクリプトを使用します。
@@ -48,22 +60,41 @@ cd ~/dotfiles
 
 これにより、以下の処理が行われます：
 - VSCodeの `settings.json`, `snippets` のコピー
-- VSCode拡張機能リスト (`vscode_extensions.txt`) の更新
+- VSCode拡張機能リスト (`vscode/extensions.txt`) の更新
 - Neovim設定のバックアップ
 
 その後、変更内容を確認して Git にコミットしてください。
 
 ## 📂 ディレクトリ構成
 
-- `install.sh`: メインのセットアップスクリプト
-- `update_repo.sh`: 現環境の設定を吸い出すスクリプト
-- `scripts/`: 各機能ごとのセットアップスクリプト
-- `zsh/`: Zshの設定ファイル群（`aliases.zsh`, `exports.zsh` など分割管理）
-- `config/`: `~/.config` 以下に配置される設定（nvim, mozcなど）
-- `vscode/`: VSCode用設定
-- `latex/`: LaTeX用設定
+```text
+~/dotfiles/
+├── install.sh             # メインインストーラー
+├── update_repo.sh         # 設定吸い出しスクリプト
+├── scripts/               # 各種セットアップスクリプト
+│   ├── setup_zsh.sh
+│   ├── setup_neovim.sh
+│   ├── setup_vscode.sh
+│   └── ros/               # ROS環境構築用
+│       ├── install_env.sh
+│       ├── prepare_transfer.sh
+│       └── packages.txt   # パッケージリスト類
+├── zsh/                   # Zsh設定（分割管理）
+│   ├── .zshrc             # エントリーポイント
+│   ├── aliases.zsh
+│   ├── exports.zsh
+│   └── ros.zsh
+├── config/                # ~/.config/ へのリンク元
+│   ├── nvim/
+│   ├── mozc/
+│   └── dconf/             # GNOME設定など
+├── vscode/                # VSCode設定
+│   ├── settings.json
+│   ├── snippets/
+│   └── extensions.txt
+└── latex/                 # LaTeX設定
+```
 
 ## 📝 その他
 
-- **ROS環境**: `install_ros_environment.sh` などの専用スクリプトも含まれています。
 - **PC固有設定**: `~/.zshrc.local` を作成すると、git管理外でそのPC固有の設定を追加できます。
