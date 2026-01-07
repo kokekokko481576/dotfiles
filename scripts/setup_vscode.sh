@@ -15,13 +15,14 @@ fi
 create_safe_link "$HOME/dotfiles/vscode/settings.json" "$VSCODE_CONFIG_DIR/settings.json"
 create_safe_link "$HOME/dotfiles/vscode/snippets" "$VSCODE_CONFIG_DIR/snippets"
 
-# 拡張機能のインストール（もしリストがあれば）
-if [ -f "$HOME/dotfiles/vscode_extensions.txt" ]; then
+# 拡張機能のインストール
+EXT_LIST="$HOME/dotfiles/vscode/extensions.txt"
+if [ -f "$EXT_LIST" ]; then
     if command -v code >/dev/null 2>&1; then
         log_info "Installing VSCode extensions..."
         while read line; do
             code --install-extension "$line" --force
-        done < "$HOME/dotfiles/vscode_extensions.txt"
+        done < "$EXT_LIST"
     else
         log_warn "'code' command not found. Skipping extension installation."
     fi

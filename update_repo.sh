@@ -12,7 +12,7 @@ if [ -d "$VSCODE_CONFIG_DIR" ]; then
     
     # 拡張機能リストを更新
     if command -v code >/dev/null 2>&1; then
-        code --list-extensions > "$HOME/dotfiles/vscode_extensions.txt"
+        code --list-extensions > "$HOME/dotfiles/vscode/extensions.txt"
         log_success "Updated VSCode extensions list."
     fi
 fi
