@@ -17,9 +17,11 @@ end
 
 packer.init {
   display = {
-    open_fn = function()
-      return require("packer.util").float { border = "rounded" }
-    end,
+    -- Floating window causes 'Invalid window id' error in some Neovim versions.
+    -- Switching to standard split for better stability.
+    -- open_fn = function()
+    --   return require("packer.util").float { border = "rounded" }
+    -- end,
   },
 }
 
