@@ -1,5 +1,6 @@
 #!/bin/bash
-source "$(dirname "$0")/../lib/utils.sh"
+DOTFILES_DIR=$(cd "$(dirname "$0")/../"; pwd)
+source "$DOTFILES_DIR/lib/utils.sh"
 
 log_info "Setting up Zsh..."
 
@@ -12,13 +13,13 @@ else
 fi
 
 # 2. 基本的なシンボリックリンクの作成
-create_safe_link "$HOME/dotfiles/zsh/.zshrc" "$HOME/.zshrc"
-create_safe_link "$HOME/dotfiles/zsh/.zpreztorc" "$HOME/.zpreztorc"
-create_safe_link "$HOME/dotfiles/zsh/.p10k.zsh" "$HOME/.p10k.zsh"
+DOTFILES_ZSH="$DOTFILES_DIR/zsh"
+create_safe_link "$DOTFILES_ZSH/.zshrc" "$HOME/.zshrc"
+create_safe_link "$DOTFILES_ZSH/.zpreztorc" "$HOME/.zpreztorc"
+create_safe_link "$DOTFILES_ZSH/.p10k.zsh" "$HOME/.p10k.zsh"
 
 # 3. 分割設定ファイルのリンク（conf.d方式）
 CONF_DIR="$HOME/.config/zsh/conf.d"
-DOTFILES_ZSH="$HOME/dotfiles/zsh"
 mkdir -p "$CONF_DIR"
 
 log_info "Configuring Zsh plugins in $CONF_DIR ..."

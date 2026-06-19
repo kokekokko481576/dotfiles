@@ -35,12 +35,13 @@ check_dependencies() {
 
 show_menu() {
     echo "インストール方法を選んでね："
-    echo "1) Recommended (全部入り: Zsh, Neovim, VSCode, tmux, Mozc)"
+    echo "1) Recommended (全部入り: Zsh, Neovim, VSCode, tmux, Mozc, Git)"
     echo "2) Custom (ひとつずつ選ぶ)"
     echo "3) Zsh only"
     echo "4) Neovim only"
     echo "5) VSCode only"
     echo "6) tmux only"
+    echo "7) Git only"
     echo "q) 終了"
 }
 
@@ -50,6 +51,7 @@ install_neovim() { bash "$DOTFILES_DIR/scripts/setup_neovim.sh"; }
 install_vscode() { bash "$DOTFILES_DIR/scripts/setup_vscode.sh"; }
 install_tmux()   { bash "$DOTFILES_DIR/scripts/setup_tmux.sh"; }
 install_mozc()   { bash "$DOTFILES_DIR/scripts/setup_mozc.sh"; }
+install_git()    { bash "$DOTFILES_DIR/scripts/setup_git.sh"; }
 
 # --- メイン処理開始 ---
 check_dependencies
@@ -68,6 +70,7 @@ while true; do
             install_vscode
             install_tmux
             install_mozc
+            install_git
             break
             ;;
         2)
@@ -82,12 +85,15 @@ while true; do
             if ask_yes_no "tmux (Terminal Multiplexer) の設定をインストールしますか？"; then install_tmux; fi
             echo ""
             if ask_yes_no "Mozc (Japanese Input) の設定をインストールしますか？(Linux only)"; then install_mozc; fi
+            echo ""
+            if ask_yes_no "Git の設定をインストールしますか？"; then install_git; fi
             break
             ;;
         3) install_zsh; break ;;
         4) install_neovim; break ;;
         5) install_vscode; break ;;
         6) install_tmux; break ;;
+        7) install_git; break ;;
         q) exit 0 ;;
         *) log_error "無効な選択だぜ" ;;
     esac

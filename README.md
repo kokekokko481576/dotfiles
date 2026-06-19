@@ -32,10 +32,13 @@ cd ~/dotfiles
 ```
 
 **メニュー例:**
-1. **All**: 全ての設定（Zsh, Neovim, VSCode）をインストール
-2. **Zsh only**: シェル環境のみ構築
-3. **Neovim only**: エディタ設定のみリンク
-4. **VSCode only**: 設定同期と拡張機能のインストール
+1. **Recommended**: 全ての設定（Zsh, Neovim, VSCode, tmux, Mozc, Git）をインストール
+2. **Custom**: ひとつずつ選んでインストール
+3. **Zsh only**: シェル環境のみ構築
+4. **Neovim only**: エディタ設定のみリンク
+5. **VSCode only**: 設定同期と拡張機能のインストール
+6. **tmux only**: ターミナルマルチプレクサ設定のみ
+7. **Git only**: Git設定のみリンク
 
 ※ 既存の設定ファイルがある場合は、自動的に `.bak` としてバックアップが作成されます。
 
@@ -71,19 +74,30 @@ ROS 2 (Humble) 環境の構築や、別のPCへの移行には専用のスクリ
 ~/dotfiles/
 ├── install.sh             # メインインストーラー
 ├── update_repo.sh         # 設定吸い出しスクリプト
+├── lib/
+│   └── utils.sh           # 共通ユーティリティ関数
 ├── scripts/               # 各種セットアップスクリプト
 │   ├── setup_zsh.sh
 │   ├── setup_neovim.sh
 │   ├── setup_vscode.sh
+│   ├── setup_tmux.sh
+│   ├── setup_mozc.sh
+│   ├── setup_git.sh
 │   └── ros/               # ROS環境構築用
 │       ├── install_env.sh
 │       ├── prepare_transfer.sh
-│       └── packages.txt   # パッケージリスト類
+│       ├── apt_packages.txt
+│       └── python_packages.txt
 ├── zsh/                   # Zsh設定（分割管理）
 │   ├── .zshrc             # エントリーポイント
 │   ├── aliases.zsh
 │   ├── exports.zsh
-│   └── ros.zsh
+│   ├── ros.zsh
+│   └── google_cloud.zsh
+├── tmux/                  # tmux設定
+│   └── .tmux.conf
+├── git/                   # Git設定
+│   └── .gitconfig
 ├── config/                # ~/.config/ へのリンク元
 │   ├── nvim/
 │   ├── mozc/
@@ -93,6 +107,7 @@ ROS 2 (Humble) 環境の構築や、別のPCへの移行には専用のスクリ
 │   ├── snippets/
 │   └── extensions.txt
 └── latex/                 # LaTeX設定
+    └── .latexmkrc
 ```
 
 ## 📝 その他

@@ -1,2 +1,3 @@
 config/mozc/.*
 config/nvim/plugin/packer_compiled.lua
+azimuth_project_src.tar.gz
