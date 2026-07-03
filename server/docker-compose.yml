@@ -1,0 +1,168 @@
+services:
+
+  # ================================================================
+  # Immich — 写真・動画管理（Google Photos 代替）
+  # アクセス: http://server:2283
+  # ================================================================
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      - ${UPLOAD_LOCATION:-/mnt/data/immich}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    env_file: .env
+    environment:
+      DB_HOSTNAME: database
+      DB_USERNAME: ${DB_USERNAME:-immich}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME:-immich}
+      REDIS_HOSTNAME: redis
+    ports:
+      - "2283:3001"
+    depends_on:
+      - redis
+      - database
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/server-info/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  immich-microservices:
+    container_name: immich_microservices
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    command: ["start.sh", "microservices"]
+    volumes:
+      - ${UPLOAD_LOCATION:-/mnt/data/immich}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    env_file: .env
+    environment:
+      DB_HOSTNAME: database
+      DB_USERNAME: ${DB_USERNAME:-immich}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME:-immich}
+      REDIS_HOSTNAME: redis
+    depends_on:
+      - redis
+      - database
+    restart: always
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    volumes:
+      - model-cache:/cache
+    env_file: .env
+    restart: always
+    # RAM節約のため、顔認識・CLIPが不要なら無効化してよい
+    # profiles: ["ml"]
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/redis:6.2-alpine
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:16-vectorchord0.4.1
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME:-immich}
+      POSTGRES_DB: ${DB_DATABASE_NAME:-immich}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready --dbname='${DB_DATABASE_NAME:-immich}' --username='${DB_USERNAME:-immich}' || exit 1
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+    command: >
+      postgres
+      -c shared_preload_libraries=vchord.so
+      -c search_path="$$user",public,vchord
+      -c logging_collector=on
+      -c max_wal_size=2GB
+      -c shared_buffers=256MB
+      -c ssl=off
+    restart: always
+
+  # ================================================================
+  # Samba — ファイル共有（Linux / macOS / Windows からアクセス）
+  # アクセス: smb://server/data
+  # ================================================================
+  samba:
+    container_name: samba
+    image: ghcr.io/crazy-max/samba:latest
+    ports:
+      - "445:445"
+    volumes:
+      - /mnt/data:/data
+      - ./samba/smb.conf:/etc/samba/smb.conf:ro
+    environment:
+      - TZ=Asia/Tokyo
+    restart: always
+
+  # ================================================================
+  # OpenWebUI — AIチャットUI（Gemini / Ollama 共通フロントエンド）
+  # アクセス: http://server:3000
+  # ================================================================
+  openwebui:
+    container_name: openwebui
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080"
+    volumes:
+      - openwebui-data:/app/backend/data
+    environment:
+      # Phase 1: Gemini API（OpenAI互換エンドポイント使用）
+      - OPENAI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+      - OPENAI_API_KEY=${GEMINI_API_KEY}
+      # Phase 2で Ollama に切り替える場合:
+      # - OPENAI_API_BASE_URL=http://gpu-pc:11434/v1
+      # - OPENAI_API_KEY=ollama
+      - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET:-changeme_please}
+    restart: always
+
+  # ================================================================
+  # n8n — ワークフロー自動化（Googleカレンダー連携・通知）
+  # アクセス: http://server:5678
+  # ================================================================
+  n8n:
+    container_name: n8n
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - /mnt/data/ai/n8n:/home/node/.n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=kokko
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - GENERIC_TIMEZONE=Asia/Tokyo
+      - TZ=Asia/Tokyo
+      - WEBHOOK_URL=http://server:5678/
+    restart: always
+
+  # ================================================================
+  # Butler Bot — Discord Bot + AIエージェント（自作）
+  # 起動: docker compose --profile butler up -d
+  # ================================================================
+  butler-bot:
+    container_name: butler_bot
+    build: ./ai
+    volumes:
+      - /mnt/data/ai/context:/app/context
+    env_file: .env
+    environment:
+      - TZ=Asia/Tokyo
+    restart: unless-stopped
+    profiles:
+      - butler  # APIキー設定後に有効化するため通常起動から除外
+
+volumes:
+  pgdata:
+  model-cache:
+  openwebui-data:

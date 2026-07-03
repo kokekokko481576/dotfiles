@@ -1,0 +1,6 @@
+.env
+**/*.key
+**/*.pem
+**/*.secret
+samba/passwd
+ai/context/
