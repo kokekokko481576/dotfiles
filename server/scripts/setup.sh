@@ -31,11 +31,6 @@ echo "[*] /mnt/data ディレクトリを確認..."
 sudo mkdir -p /mnt/data/{photos,documents,shared,ai/context,ai/n8n,backup}
 sudo chown -R "$(whoami):$(whoami)" /mnt/data
 
-# ---- Samba ユーザー設定 ----
-echo "[*] Samba ユーザーを設定..."
-echo "Sambaのパスワードを入力してください（SMB接続時に使うパスワード）:"
-sudo smbpasswd -a "$(whoami)"
-
 # ---- Docker ネットワーク確認 ----
 echo "[*] Docker 確認..."
 if ! sudo docker info >/dev/null 2>&1; then
@@ -47,6 +42,17 @@ fi
 echo "[*] サービスを起動..."
 cd "$SERVER_DIR"
 sudo docker compose up -d
+
+# ---- Samba ユーザー設定 ----
+# Samba はコンテナ (ghcr.io/crazy-max/samba) で動くため、smbpasswd もコンテナ内で実行する
+echo "[*] Samba コンテナの起動を待機..."
+until sudo docker exec samba true >/dev/null 2>&1; do
+  sleep 1
+done
+
+echo "[*] Samba ユーザーを設定..."
+echo "Sambaのパスワードを入力してください（SMB接続時に使うパスワード）:"
+sudo docker exec -it samba smbpasswd -a "$(whoami)"
 
 echo ""
 echo "=== セットアップ完了 ==="
