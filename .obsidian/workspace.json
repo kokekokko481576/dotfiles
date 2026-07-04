@@ -1,0 +1,214 @@
+{
+  "main": {
+    "id": "e18dfceb0a386757",
+    "type": "split",
+    "children": [
+      {
+        "id": "2480b4640073e4f8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fed6aa802190e764",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "新規タブ"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "e909c6e7e569ebe9",
+    "type": "split",
+    "children": [
+      {
+        "id": "bb517d6528285b2b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c7393164a0f03bed",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "ファイルエクスプローラ"
+            }
+          },
+          {
+            "id": "3b78d4c23279f6db",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "検索"
+            }
+          },
+          {
+            "id": "6fbb9e5457b3a6a4",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "ブックマーク"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "53fb6038f7d70e79",
+    "type": "split",
+    "children": [
+      {
+        "id": "e858f645fa3a3f52",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "87c4e38cfd3d0b7b",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "バックリンク"
+            }
+          },
+          {
+            "id": "e3339d2cf6c6a2e5",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "アウトゴーイングリンク"
+            }
+          },
+          {
+            "id": "584a6160b4b4d6dc",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "タグ"
+            }
+          },
+          {
+            "id": "f30b95da1c8a1618",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "すべてのプロパティ"
+            }
+          },
+          {
+            "id": "c620e6251f657760",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "アウトライン"
+            }
+          },
+          {
+            "id": "569b6a5b9d522952",
+            "type": "leaf",
+            "state": {
+              "type": "git-view",
+              "state": {},
+              "icon": "git-pull-request",
+              "title": "Source Control"
+            }
+          }
+        ],
+        "currentTab": 5
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:クイックスイッチャーを開く": false,
+      "graph:グラフビューを開く": false,
+      "canvas:新規キャンバスを作成": false,
+      "daily-notes:今日のデイリーノートを開く": false,
+      "templates:テンプレートを挿入": false,
+      "command-palette:コマンドパレットを開く": false,
+      "bases:新規ベースを作成": false,
+      "obsidian-git:Open Git source control": false
+    }
+  },
+  "active": "569b6a5b9d522952",
+  "lastOpenFiles": [
+    "server/scripts/update.sh",
+    "server/scripts/setup.sh",
+    "server/scripts",
+    "server/samba/smb.conf",
+    "server/samba",
+    "server/guide/09_トラブルシューティング.md",
+    "server/guide/08_SSH鍵認証強化.md",
+    "server/guide/07_Samba設定.md",
+    "server/guide/06_n8n設定.md",
+    "server/guide/05_Immich初期設定.md",
+    "server/guide/04_サービス起動.md",
+    "server/guide/03_Discord_Bot作成.md",
+    "server/guide/02_APIキーと.env設定.md",
+    "server/guide/01_Tailscale設定.md",
+    "server/guide/00_はじめに.md",
+    "server/guide",
+    "server/docker-compose.yml",
+    "server/ai/src/bot.py",
+    "server/ai/src",
+    "server/ai/requirements.txt",
+    "server/ai/Dockerfile"
+  ]
+}
