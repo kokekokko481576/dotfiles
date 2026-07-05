@@ -3,6 +3,7 @@ Butler Bot — Phase 1
 Discord経由でGemini APIと会話する執事ボット。
 """
 import os
+import io
 import json
 import asyncio
 import logging
@@ -243,9 +244,11 @@ async def on_message(message: discord.Message):
         history.append({"role": "assistant", "text": reply})
         save_history(history)
 
-    # 長い返答はファイル添付
+    # 長い返答はファイル添付（以前はメッセージを切り詰めるだけで、実際には添付ファイルを
+    # 送っていなかったバグがあった。実際にdiscord.Fileとして全文を添付するよう修正）
     if len(reply) > 1900:
-        await message.reply(reply[:1900] + "\n… (続きは添付ファイル)")
+        file = discord.File(io.BytesIO(reply.encode("utf-8")), filename="reply.txt")
+        await message.reply(reply[:1900] + "\n…（全文は添付ファイルをご覧ください）", file=file)
     else:
         await message.reply(reply)
 
