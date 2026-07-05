@@ -31,7 +31,32 @@
 | 対象 | `/mnt/data/photos`, `/mnt/data/documents`, Immich/PostgresのDBダンプ，`.env`を除く設定ファイル | ~~P0~~ 完了（2026-07-05, `scripts/backup.sh`で実装。対象: photos/documents/immich(実データ)/ai(n8n・butler)/pg_dump/.env含む主要設定。`docker-compose.yml`は既にgit管理下のため対象外） |
 | 復元テスト | バックアップを取るだけでなく，四半期に1回程度は実際にリストアできるか検証する | 初回バックアップ完了後に実施予定（本ドキュメント作成時点でまだ検証中）。継続的な四半期チェックは今後の運用課題 |
 | 自動実行 | 毎日決まった時刻にバックアップを走らせる | ~~新規~~ 完了（2026-07-05, `homeserver-backup.timer`で毎日03:30に自動実行。`scripts/systemd/`にunitファイル配置、`sudo cp scripts/systemd/*.service /etc/systemd/system/; sudo cp scripts/systemd/*.timer /etc/systemd/system/; sudo systemctl daemon-reload; sudo systemctl enable --now homeserver-backup.timer`で再現可能） |
-| ディスク健全性監視 | `/dev/sdb`（1.8TB）は単一障害点。`smartmontools`（smartd）でSMART情報を監視し，異常時にDiscord通知 | ~~P0~~ 一部完了（2026-07-05, smartmontools導入・smartd有効化。現在sda/sdbともにSMART PASSED。Discord通知はButler Bot起動後に検討） |
+| ディスク健全性監視 | `/dev/sdb`（1.8TB）は単一障害点。`smartmontools`（smartd）でSMART情報を監視し，異常時にDiscord通知 | ~~P0~~ 導入完了（2026-07-05, smartmontools導入・smartd有効化）。**導入直後の初回バックアップで実際に不良セクタを検出**（下記参照）。全体判定は`PASSED`だが過信は禁物。Discord通知はButler Bot起動後に検討 |
+
+### 2.1 新規発見：`/dev/sdb`に不良セクタあり、1ファイルが読み込み不能（2026-07-05）
+
+初回resticバックアップ実行中に以下のファイルで`input/output error`：
+
+```
+/mnt/data/immich/library/admin/2025/2025-05/20250531_14948_screen-20250531-224944.mp4
+```
+
+`dmesg`で実際のディスクエラーを確認：`critical medium error, dev sdb, sector 1758104, Unrecovered read error`。
+`smartctl -a /dev/sdb`のRAW値：
+
+| 属性 | 値 | 意味 |
+|-----|-----|------|
+| Reallocated_Sector_Ct | 240 | 既に240セクタが交代済み（今回が初めてではない） |
+| Current_Pending_Sector | 1 | 再割り当て待ちのセクタが1つ（今回のファイルが該当する可能性） |
+| Reported_Uncorrect | 7 | 訂正不能エラーの累積が7件 |
+| Power_On_Hours | 9619 | 約1.1年相当の通電時間 |
+
+**この特定のファイルは現状復元不可能**（元データがこの1箇所にしかなく、resticの初回バックアップ対象にも
+まだ含まれていない）。スマホ側にオリジナルが残っていればImmichへの再アップロードで復旧可能か確認を推奨。
+
+`Reallocated_Sector_Ct`が240と少なくないため、ディスク全体の劣化トレンドとして継続監視が必要
+（`sudo smartctl -a /dev/sdb`で定期確認、増加が続く場合は交換を検討）。**セクタの強制再割り当て
+（`dd`等での上書き）はデータ損失リスクがあるため実施していない。**
 
 ## 3. 監視・可観測性の追加（関連: 08_security.md）
 
