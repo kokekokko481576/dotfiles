@@ -27,9 +27,10 @@
 | 項目 | 提案 | 優先度 |
 |-----|------|------|
 | 3-2-1原則 | データ3部・媒体2種・オフサイト1箇所を最低ラインとする | P0 |
-| ツール | `restic` または `borgbackup`（増分・暗号化・重複排除対応）を採用し，`rclone` でクラウド（Backblaze B2等）へ転送 | P1 |
-| 対象 | `/mnt/data/photos`, `/mnt/data/documents`, Immich/PostgresのDBダンプ，`.env`を除く設定ファイル | P0 |
-| 復元テスト | バックアップを取るだけでなく，四半期に1回程度は実際にリストアできるか検証する | P1 |
+| ツール | `restic` または `borgbackup`（増分・暗号化・重複排除対応）を採用し，`rclone` でクラウド（Backblaze B2等）へ転送 | ~~P1~~ ローカル分は完了（2026-07-05, restic導入。オフサイト転送(rclone等)は新規クラウドアカウントが必要なため未実施＝3-2-1の「1」は未達） |
+| 対象 | `/mnt/data/photos`, `/mnt/data/documents`, Immich/PostgresのDBダンプ，`.env`を除く設定ファイル | ~~P0~~ 完了（2026-07-05, `scripts/backup.sh`で実装。対象: photos/documents/immich(実データ)/ai(n8n・butler)/pg_dump/.env含む主要設定。`docker-compose.yml`は既にgit管理下のため対象外） |
+| 復元テスト | バックアップを取るだけでなく，四半期に1回程度は実際にリストアできるか検証する | 初回バックアップ完了後に実施予定（本ドキュメント作成時点でまだ検証中）。継続的な四半期チェックは今後の運用課題 |
+| 自動実行 | 毎日決まった時刻にバックアップを走らせる | ~~新規~~ 完了（2026-07-05, `homeserver-backup.timer`で毎日03:30に自動実行。`scripts/systemd/`にunitファイル配置、`sudo cp scripts/systemd/*.service /etc/systemd/system/; sudo cp scripts/systemd/*.timer /etc/systemd/system/; sudo systemctl daemon-reload; sudo systemctl enable --now homeserver-backup.timer`で再現可能） |
 | ディスク健全性監視 | `/dev/sdb`（1.8TB）は単一障害点。`smartmontools`（smartd）でSMART情報を監視し，異常時にDiscord通知 | ~~P0~~ 一部完了（2026-07-05, smartmontools導入・smartd有効化。現在sda/sdbともにSMART PASSED。Discord通知はButler Bot起動後に検討） |
 
 ## 3. 監視・可観測性の追加（関連: 08_security.md）

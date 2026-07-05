@@ -1,0 +1,10 @@
+[Unit]
+Description=Home server restic backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/bash /home/kokko/dotfiles/server/scripts/backup.sh
+User=kokko

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run home server backup daily at 03:30 JST
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
