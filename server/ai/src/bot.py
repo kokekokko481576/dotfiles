@@ -22,7 +22,7 @@ CHANNEL_NOTIFY      = int(os.environ.get("DISCORD_CHANNEL_NOTIFY", "0"))
 CHANNEL_CHAT        = int(os.environ.get("DISCORD_CHANNEL_CHAT", "0"))
 LITELLM_BASE_URL    = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000/v1")
 LITELLM_MASTER_KEY  = os.environ["LITELLM_MASTER_KEY"]
-LLM_MODEL           = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+LLM_MODEL           = os.environ.get("LLM_MODEL", "gemini-2.5-flash-vertex")
 CONTEXT_DIR         = Path(os.environ.get("CONTEXT_DIR", "/app/context"))
 CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
