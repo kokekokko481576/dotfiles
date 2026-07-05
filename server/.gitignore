@@ -2,6 +2,7 @@
 **/*.key
 **/*.pem
 **/*.secret
+vertex-sa.json
 samba/passwd
 ai/context/
 homepage/logs/
