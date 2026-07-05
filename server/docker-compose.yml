@@ -108,6 +108,7 @@ services:
       - ./samba/smb.conf:/etc/samba/smb.conf:ro
     environment:
       - TZ=Asia/Tokyo
+      - SAMBA_PASSWORD=${SAMBA_PASSWORD}
     restart: always
     mem_limit: 128m
 
