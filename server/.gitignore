@@ -4,3 +4,5 @@
 **/*.secret
 samba/passwd
 ai/context/
+homepage/logs/
+homepage/kubernetes.yaml
