@@ -62,20 +62,7 @@ Immich の共有リンクを使う場合：
 
 ## 未実施・将来対応
 
-- [ ] fail2ban の設定（ブルートフォース対策）
-  ```bash
-  sudo apt install -y fail2ban
-  sudo systemctl enable --now fail2ban
-  # デフォルトでsshd jailが有効。状態確認:
-  sudo fail2ban-client status sshd
-  ```
 - [ ] Let's Encrypt 証明書（Tailscale Funnel を使う場合）
-- [ ] 定期的なセキュリティアップデートの自動化（unattended-upgrades）
-  ```bash
-  sudo apt install -y unattended-upgrades
-  sudo dpkg-reconfigure --priority=low unattended-upgrades
-  # 自動再起動が必要な場合の設定は /etc/apt/apt.conf.d/50unattended-upgrades で調整
-  ```
 - [ ] バックアップデータの暗号化
 - [ ] SSHのUFW許可範囲の見直し（現状`22/tcp ALLOW IN Anywhere`。Tailscale経由に絞るなら`ufw allow in on tailscale0`のみに変更し22/tcpの全体許可を削除）
 
@@ -84,3 +71,7 @@ Immich の共有リンクを使う場合：
 - [x] docker-compose.yml 全サービスに`mem_limit`を設定（RAM 7.1GB環境でのOOM対策、2026-07-05）
 - [x] Uptime Kuma を追加（サービス死活監視、`http://kokko-server-pavilion:3001`、2026-07-05）
 - [x] `scripts/validate.sh` で `docker compose config` 構文チェックを追加（2026-07-05）
+- [x] fail2ban 導入・有効化（sshd jail、2026-07-05）
+- [x] unattended-upgrades 有効化確認（既にインストール済み、`APT::Periodic::Unattended-Upgrade "1"`を確認、2026-07-05）
+- [x] sambaコンテナのSMB接続不能問題を修正（`/data/cache`・`/data/lib`の所有者不一致、2026-07-05）
+- [x] swapを8GBに拡張（2026-07-05）
