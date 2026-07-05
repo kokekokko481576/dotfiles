@@ -6,3 +6,7 @@ samba/passwd
 ai/context/
 homepage/logs/
 homepage/kubernetes.yaml
+homepage/docker.yaml
+homepage/proxmox.yaml
+homepage/custom.css
+homepage/custom.js
