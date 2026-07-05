@@ -10,7 +10,7 @@ from pathlib import Path
 
 import discord
 from discord.ext import commands, tasks
-import google.generativeai as genai
+from openai import AsyncOpenAI
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -20,19 +20,18 @@ DISCORD_TOKEN       = os.environ["DISCORD_TOKEN"]
 DISCORD_GUILD_ID    = int(os.environ["DISCORD_GUILD_ID"])
 CHANNEL_NOTIFY      = int(os.environ.get("DISCORD_CHANNEL_NOTIFY", "0"))
 CHANNEL_CHAT        = int(os.environ.get("DISCORD_CHANNEL_CHAT", "0"))
-GEMINI_API_KEY      = os.environ["GEMINI_API_KEY"]
+LITELLM_BASE_URL    = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000/v1")
+LITELLM_MASTER_KEY  = os.environ["LITELLM_MASTER_KEY"]
+LLM_MODEL           = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
 CONTEXT_DIR         = Path(os.environ.get("CONTEXT_DIR", "/app/context"))
 CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ---- Gemini 設定 ----
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(
-    model_name="gemini-2.0-flash",
-    system_instruction=(
-        "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。"
-        "返答は簡潔・丁寧に。日本語で答えてください。"
-        "ツール操作（カレンダー・Switchbot等）は将来実装予定です。"
-    ),
+# ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
+llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY)
+SYSTEM_INSTRUCTION = (
+    "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。"
+    "返答は簡潔・丁寧に。日本語で答えてください。"
+    "ツール操作（カレンダー・Switchbot等）は将来実装予定です。"
 )
 
 # 会話履歴の読み込み / 保存
@@ -41,7 +40,12 @@ HISTORY_FILE = CONTEXT_DIR / "conversation_history.json"
 def load_history() -> list:
     if HISTORY_FILE.exists():
         try:
-            return json.loads(HISTORY_FILE.read_text())[-40:]  # 直近40件
+            history = json.loads(HISTORY_FILE.read_text())[-40:]  # 直近40件
+            # 旧Gemini形式(role="model")のログをOpenAI形式(role="assistant")に変換
+            for h in history:
+                if h.get("role") == "model":
+                    h["role"] = "assistant"
+            return history
         except Exception:
             return []
     return []
@@ -84,20 +88,22 @@ async def on_message(message: discord.Message):
 
     async with message.channel.typing():
         history = load_history()
-        # Gemini に会話履歴付きで問い合わせ
-        chat = model.start_chat(history=[
-            {"role": h["role"], "parts": [h["text"]]} for h in history
-        ])
+        messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+        messages += [{"role": h["role"], "content": h["text"]} for h in history]
+        messages.append({"role": "user", "content": content})
         try:
-            response = chat.send_message(content)
-            reply = response.text
+            response = await llm_client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+            )
+            reply = response.choices[0].message.content
         except Exception as e:
-            log.error(f"Gemini API error: {e}")
+            log.error(f"LLM API error: {e}")
             reply = f"エラーが発生しました: {e}"
 
         # 履歴保存
-        history.append({"role": "user",  "text": content})
-        history.append({"role": "model", "text": reply})
+        history.append({"role": "user",      "text": content})
+        history.append({"role": "assistant", "text": reply})
         save_history(history)
 
     # 長い返答はファイル添付

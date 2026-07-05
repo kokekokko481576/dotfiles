@@ -62,6 +62,27 @@ services:
 | 導入モデル | `llama3.2:3b`（Q4量子化、約2GB。RAM 7.1GB環境のためCPU推論は小型モデル限定）|
 | 追加方法 | `docker exec ollama ollama pull <モデル名>` |
 
+### LiteLLM（Vertex AI中継プロキシ）
+
+Google AI Studio(`GEMINI_API_KEY`)のPrepaidクレジットが枯渇した際の代替経路として、
+Vertex AI経由でGeminiを呼べるように追加（2026-07-05）。
+
+| 項目 | 値 |
+|-----|---|
+| イメージ | `ghcr.io/berriai/litellm:main-stable` |
+| ポート | 公開なし（内部ネットワーク`http://litellm:4000`のみ）|
+| 認証 | `vertex-sa.json`（サービスアカウント鍵、`.gitignore`済み）+ `LITELLM_MASTER_KEY` |
+| 設定 | `./litellm/config.yaml`（`gemini-2.5-flash`, `gemini-2.5-pro`をVertex AI `us-central1`で定義）|
+| mem_limit | 1536m（依存ライブラリが多く512mでは起動時に不足した実績あり）|
+| 利用側 | OpenWebUI（`openai.api_base_urls`にAI Studio Geminiと並べて2つ目の接続として登録）、
+  Butler Bot（`ai/src/bot.py`が`openai`パッケージ経由でここを呼ぶ）|
+
+**注意**：Google CloudのTrial credit（GenAI App Builder向けと表示されていたもの）がVertex AIの
+Gemini呼び出しに実際に適用されているかは未確認（課金エラーは出ていないが、少額の実費が
+決済カードに課金されている可能性も否定できない）。しばらくGoogle Cloudの請求画面で
+実際の消費先を確認すること。`gemini-2.0-flash`系はこのプロジェクト/リージョンでは
+404（モデルが見つからない）だったため`gemini-2.5-flash`/`gemini-2.5-pro`のみ使用している。
+
 ### n8n
 
 | 項目 | 値 |

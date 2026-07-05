@@ -129,9 +129,12 @@ services:
       - OPENAI_API_KEY=${GEMINI_API_KEY}
       # ローカルLLM（同一サーバー上のOllama、CPU推論）
       - OLLAMA_BASE_URL=http://ollama:11434
+      # Vertex AI経由Gemini（LiteLLM中継、DB内のconnectionsに登録するために必要）
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET:-changeme_please}
     depends_on:
       - ollama
+      - litellm
     restart: always
     mem_limit: 512m
 
@@ -146,6 +149,24 @@ services:
       - ollama-data:/root/.ollama
     restart: always
     mem_limit: 3g
+
+  # ================================================================
+  # LiteLLM — Vertex AI(Gemini)への中継プロキシ
+  # OAuth認証(サービスアカウント)をここに集約し、OpenWebUI/Butler Botには
+  # 通常のOpenAI互換APIキーとして見せる
+  # ================================================================
+  litellm:
+    container_name: litellm
+    image: ghcr.io/berriai/litellm:main-stable
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+      - ./vertex-sa.json:/app/vertex-sa.json:ro
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/vertex-sa.json
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    restart: always
+    mem_limit: 1536m
 
   # ================================================================
   # n8n — ワークフロー自動化（Googleカレンダー連携・通知）
