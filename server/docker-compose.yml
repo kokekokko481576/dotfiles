@@ -123,15 +123,28 @@ services:
     volumes:
       - openwebui-data:/app/backend/data
     environment:
-      # Phase 1: Gemini API（OpenAI互換エンドポイント使用）
+      # Gemini API（OpenAI互換エンドポイント使用）
       - OPENAI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
       - OPENAI_API_KEY=${GEMINI_API_KEY}
-      # Phase 2で Ollama に切り替える場合:
-      # - OPENAI_API_BASE_URL=http://gpu-pc:11434/v1
-      # - OPENAI_API_KEY=ollama
+      # ローカルLLM（同一サーバー上のOllama、CPU推論）
+      - OLLAMA_BASE_URL=http://ollama:11434
       - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET:-changeme_please}
+    depends_on:
+      - ollama
     restart: always
     mem_limit: 512m
+
+  # ================================================================
+  # Ollama — ローカルLLM推論（このサーバー上でCPU推論、GPUなし）
+  # RAM 7.1GB環境のため小型モデル（3B級Q4量子化）限定
+  # ================================================================
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: always
+    mem_limit: 3g
 
   # ================================================================
   # n8n — ワークフロー自動化（Googleカレンダー連携・通知）
@@ -212,3 +225,4 @@ volumes:
   model-cache:
   openwebui-data:
   uptime-kuma-data:
+  ollama-data:

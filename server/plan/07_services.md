@@ -50,7 +50,17 @@ services:
 |-----|---|
 | イメージ | `ghcr.io/open-webui/open-webui:main` |
 | ポート | `3000:8080` |
-| バックエンド設定 | Phase 1: Gemini API, Phase 2: Ollama（GPU PC）|
+| バックエンド設定 | Gemini API + Ollama（同一サーバー上でCPU推論）を同時接続。GPU PC完成後は`OLLAMA_BASE_URL`をそちらに向ける想定 |
+
+### Ollama（ローカルLLM）
+
+| 項目 | 値 |
+|-----|---|
+| イメージ | `ollama/ollama:latest` |
+| ポート | 公開なし（OpenWebUIから内部ネットワーク`http://ollama:11434`でのみアクセス）|
+| ボリューム | 名前付きボリューム `ollama-data` |
+| 導入モデル | `llama3.2:3b`（Q4量子化、約2GB。RAM 7.1GB環境のためCPU推論は小型モデル限定）|
+| 追加方法 | `docker exec ollama ollama pull <モデル名>` |
 
 ### n8n
 
