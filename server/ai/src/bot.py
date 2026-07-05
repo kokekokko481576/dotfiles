@@ -57,6 +57,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     log.info(f"Butler Bot 起動: {bot.user} (ID: {bot.user.id})")
+    if not daily_briefing.is_running():
+        daily_briefing.start()
     # 起動通知
     if CHANNEL_NOTIFY:
         ch = bot.get_channel(CHANNEL_NOTIFY)
@@ -157,5 +159,4 @@ async def clear_history(ctx):
     await ctx.send("会話履歴をリセットしました。")
 
 if __name__ == "__main__":
-    daily_briefing.start()
     bot.run(DISCORD_TOKEN)
