@@ -25,7 +25,7 @@ services:
     restart: always
     mem_limit: 768m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2283/api/server-info/ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:2283/api/server/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -151,8 +151,9 @@ services:
       - GENERIC_TIMEZONE=Asia/Tokyo
       - TZ=Asia/Tokyo
       - WEBHOOK_URL=http://kokko-server-pavilion:5678/
+      - NODE_OPTIONS=--max-old-space-size=768
     restart: always
-    mem_limit: 512m
+    mem_limit: 1024m
 
   # ================================================================
   # Butler Bot — Discord Bot + AIエージェント（自作）

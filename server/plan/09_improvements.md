@@ -17,7 +17,7 @@
 |-----|------|------|
 | swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | ~~P0~~ → `scripts/setup-swap.sh` を用意済み（2026-07-05）。実行はサーバー上で要承認 |
 | zram 併用 | ディスクI/Oを避けたい場合，swapより先にzram（圧縮メモリ）を検討 | P1 |
-| docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り） |
+| docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り）。**適用直後にn8nがクラッシュループする副作用を確認**：Node.js v24がcgroupのメモリ上限からV8ヒープ上限を自動計算し、512mでは不足してOOM。`NODE_OPTIONS=--max-old-space-size=768`を追加し`mem_limit`を1024mに引き上げて解消（2026-07-05、詳細は`guide/09_トラブルシューティング.md`）。Immichの`healthcheck`も古いAPIパス（`/api/server-info/ping`→`/api/server/ping`）で誤検知していたため同時に修正 |
 | Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0（未実施・要検討：機能トレードオフのため実装者の判断待ち。`docker-compose.yml`に`profiles: ["ml"]`のコメントアウト済みの切替スイッチは用意済み） |
 
 ## 2. バックアップ戦略の具体化（関連: 00_overview.md, 03_file-server.md）
@@ -38,7 +38,15 @@
 
 | ツール | 用途 | メモリ目安 | 優先度 |
 |-------|-----|----------|------|
-| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://kokko-server-pavilion:3001`で初期設定・監視対象の登録が必要）|
+| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://kokko-server-pavilion:3001`で初期設定・監視対象の登録が必要）。**導入直後に監視の意義を実証**：samba・immich-serverの`unhealthy`状態を発見するきっかけになった |
+
+### 3.1 新規発見：sambaコンテナがSMB接続を受け付けていない（P0、未解決）
+
+Uptime Kuma導入の調査中に発覚。`docker ps`でsambaが常時`unhealthy`。メモリ不足ではないことを確認済み
+（`mem_limit`とは無関係、`oom_kill: 0`）。smbd本体プロセスが安定して起動しておらず、手動でのフォアグラウンド
+起動でもSMB接続を受け付けない＝ポート445へのバインドが起きていない可能性。root権限での`dmesg`調査が必要
+（詳細は`guide/09_トラブルシューティング.md`）。**ファイル共有機能そのものが使えていない可能性があるため
+優先度高。次回ログイン時にrootで調査すること。**
 | Netdata | リアルタイムのCPU/RAM/ディスク監視。Prometheus+Grafanaより軽量 | 〜150MB | P1 |
 | Prometheus + Grafana | 本格的な可観測性がほしくなった段階（Phase 2以降，GPU PC側での運用も検討） | 重い | P2 |
 
