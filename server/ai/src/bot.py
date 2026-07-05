@@ -118,7 +118,7 @@ async def daily_briefing():
     msg = (
         f"**おはようございます。{now.strftime('%Y年%m月%d日')}です。**\n"
         "・サーバー稼働中\n"
-        "・Googleカレンダー連携は n8n で設定してください（guide/05_n8n設定.md）"
+        "・Googleカレンダー連携は n8n で設定してください（guide/06_n8n設定.md）"
     )
     await ch.send(msg)
 

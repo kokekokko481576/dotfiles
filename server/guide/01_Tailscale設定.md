@@ -40,6 +40,18 @@ tailscale status
 
 このサーバーのIPアドレス（100.x.x.x）が表示されればOK。
 
+### ホスト名を`server`に固定する（重要）
+
+このガイド以下すべての手順で `http://server:2283` のように**ホスト名が`server`である前提**で書かれている。
+しかしTailscaleはデフォルトでOSのマシン名（例：`kokko-server-pavilion`）をそのまま登録するため、
+何もしないと`server`という名前ではアクセスできない。**セットアップ時に一度だけ**以下を実行して固定しておく：
+
+```bash
+sudo tailscale up --hostname=server
+```
+
+（既に`tailscale up`済みの場合も再実行すれば上書きされる）
+
 ---
 
 ## ステップ3: MagicDNS を有効にする

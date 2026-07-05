@@ -31,7 +31,7 @@ services:
 | 項目 | 値 |
 |-----|---|
 | イメージ | `ghcr.io/immich-app/immich-server:release` |
-| ポート | `2283:3001` |
+| ポート | `2283:2283`（バージョンによって内部ポートが変わるため`docker logs immich_server \| grep listening`で要確認）|
 | ボリューム | `/mnt/data/photos:/usr/src/app/upload` |
 | 依存 | PostgreSQL, Redis |
 
@@ -65,10 +65,19 @@ services:
 
 | 項目 | 値 |
 |-----|---|
-| ベース | Python 3.12 + discord.py + LangGraph |
+| ベース | Python 3.12 + discord.py（Phase 1実装はGemini API直呼び出し、LangGraph等は未採用）|
 | ポート | なし（アウトバウンドのみ）|
 | ボリューム | `/mnt/data/ai/context:/app/context` |
 | 環境変数 | `GEMINI_API_KEY`, `DISCORD_TOKEN`, `SWITCHBOT_TOKEN` |
+
+### Uptime Kuma（監視）
+
+| 項目 | 値 |
+|-----|---|
+| イメージ | `louislam/uptime-kuma:1` |
+| ポート | `3001:3001` |
+| ボリューム | 名前付きボリューム `uptime-kuma-data` |
+| 用途 | 各サービスの死活監視、Discord/Webhook通知（初回アクセス時にセットアップ必要）|
 
 ## ディレクトリ構成
 

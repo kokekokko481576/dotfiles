@@ -18,13 +18,14 @@ services:
       DB_DATABASE_NAME: ${DB_DATABASE_NAME:-immich}
       REDIS_HOSTNAME: redis
     ports:
-      - "2283:3001"
+      - "2283:2283"
     depends_on:
       - redis
       - database
     restart: always
+    mem_limit: 768m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/server-info/ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:2283/api/server-info/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -47,6 +48,7 @@ services:
       - redis
       - database
     restart: always
+    mem_limit: 768m
 
   immich-machine-learning:
     container_name: immich_machine_learning
@@ -55,6 +57,7 @@ services:
       - model-cache:/cache
     env_file: .env
     restart: always
+    mem_limit: 1g
     # RAM節約のため、顔認識・CLIPが不要なら無効化してよい
     # profiles: ["ml"]
 
@@ -64,6 +67,7 @@ services:
     healthcheck:
       test: redis-cli ping || exit 1
     restart: always
+    mem_limit: 128m
 
   database:
     container_name: immich_postgres
@@ -88,6 +92,7 @@ services:
       -c shared_buffers=256MB
       -c ssl=off
     restart: always
+    mem_limit: 512m
 
   # ================================================================
   # Samba — ファイル共有（Linux / macOS / Windows からアクセス）
@@ -104,6 +109,7 @@ services:
     environment:
       - TZ=Asia/Tokyo
     restart: always
+    mem_limit: 128m
 
   # ================================================================
   # OpenWebUI — AIチャットUI（Gemini / Ollama 共通フロントエンド）
@@ -125,6 +131,7 @@ services:
       # - OPENAI_API_KEY=ollama
       - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET:-changeme_please}
     restart: always
+    mem_limit: 512m
 
   # ================================================================
   # n8n — ワークフロー自動化（Googleカレンダー連携・通知）
@@ -145,6 +152,7 @@ services:
       - TZ=Asia/Tokyo
       - WEBHOOK_URL=http://server:5678/
     restart: always
+    mem_limit: 512m
 
   # ================================================================
   # Butler Bot — Discord Bot + AIエージェント（自作）
@@ -159,10 +167,26 @@ services:
     environment:
       - TZ=Asia/Tokyo
     restart: unless-stopped
+    mem_limit: 256m
     profiles:
       - butler  # APIキー設定後に有効化するため通常起動から除外
+
+  # ================================================================
+  # Uptime Kuma — サービス死活監視（軽量）
+  # アクセス: http://server:3001
+  # ================================================================
+  uptime-kuma:
+    container_name: uptime_kuma
+    image: louislam/uptime-kuma:1
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    restart: always
+    mem_limit: 256m
 
 volumes:
   pgdata:
   model-cache:
   openwebui-data:
+  uptime-kuma-data:

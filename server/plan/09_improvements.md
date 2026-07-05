@@ -15,10 +15,10 @@
 
 | 対策 | 内容 | 優先度 |
 |-----|------|------|
-| swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | P0 |
+| swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | ~~P0~~ → `scripts/setup-swap.sh` を用意済み（2026-07-05）。実行はサーバー上で要承認 |
 | zram 併用 | ディスクI/Oを避けたい場合，swapより先にzram（圧縮メモリ）を検討 | P1 |
-| docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | P0 |
-| Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0 |
+| docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り） |
+| Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0（未実施・要検討：機能トレードオフのため実装者の判断待ち。`docker-compose.yml`に`profiles: ["ml"]`のコメントアウト済みの切替スイッチは用意済み） |
 
 ## 2. バックアップ戦略の具体化（関連: 00_overview.md, 03_file-server.md）
 
@@ -38,7 +38,7 @@
 
 | ツール | 用途 | メモリ目安 | 優先度 |
 |-------|-----|----------|------|
-| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | P0 |
+| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://server:3001`で初期設定・監視対象の登録が必要）|
 | Netdata | リアルタイムのCPU/RAM/ディスク監視。Prometheus+Grafanaより軽量 | 〜150MB | P1 |
 | Prometheus + Grafana | 本格的な可観測性がほしくなった段階（Phase 2以降，GPU PC側での運用も検討） | 重い | P2 |
 
@@ -46,9 +46,9 @@
 
 | 提案 | 内容 | 優先度 |
 |-----|------|------|
-| `restart: unless-stopped` | 全サービスに再起動ポリシーを明記し，サーバー再起動後の自動復旧を保証 | P0 |
-| イメージ更新の自動化方針 | Watchtowerを使う場合も自動適用は避け，「更新可能」をDiscordに通知→手動承認で `docker compose pull && up -d` する運用にする（自動更新による予期せぬ破壊を防ぐ） | P1 |
-| `docker compose config` での検証 | compose変更時に構文チェックを通してから適用する習慣をscripts/に組み込む | P1 |
+| `restart: unless-stopped` | 全サービスに再起動ポリシーを明記し，サーバー再起動後の自動復旧を保証 | ~~P0~~ 確認済み：全サービスに`restart: always`（`unless-stopped`より強い復旧ポリシー）が既に設定済みだった |
+| イメージ更新の自動化方針 | Watchtowerを使う場合も自動適用は避け，「更新可能」をDiscordに通知→手動承認で `docker compose pull && up -d` する運用にする（自動更新による予期せぬ破壊を防ぐ） | P1（`scripts/update.sh`が既に手動承認フローを実現。Discord通知の追加はn8n実装後に検討） |
+| `docker compose config` での検証 | compose変更時に構文チェックを通してから適用する習慣をscripts/に組み込む | ~~P1~~ 完了（2026-07-05, `scripts/validate.sh`を追加） |
 | ボリュームのバックアップ対象明示 | 名前付きボリューム（Postgres等）もバックアップ対象に含める（bindマウントだけでは漏れる） | P0 |
 
 ## 5. ネットワーク・セキュリティの前倒し（関連: 08_security.md）
@@ -57,8 +57,9 @@
 
 | 項目 | 提案 | 優先度 |
 |-----|------|------|
-| unattended-upgrades | セキュリティパッチの自動適用は後回しにせずPhase 1から有効化（サーバーが外部接続を持つ以上，パッチ遅延はリスク） | P0 |
-| fail2ban | SSHは鍵認証のみだが，Tailscale外からの直接到達がない構成でも念のため導入（ログの異常検知にも使える） | P1 |
+| unattended-upgrades | セキュリティパッチの自動適用は後回しにせずPhase 1から有効化（サーバーが外部接続を持つ以上，パッチ遅延はリスク） | P0（実行コマンドは`plan/08_security.md`に用意済み。サーバー上での実行が必要） |
+| fail2ban | SSHは鍵認証のみだが，Tailscale外からの直接到達がない構成でも念のため導入（ログの異常検知にも使える） | P1（実行コマンドは`plan/08_security.md`に用意済み） |
+| SSHのUFW許可範囲 | セキュリティレビューで判明：現状`22/tcp`が`tailscale0`限定ではなく全インターフェースに開いている（`plan/08_security.md`の「外部への直接ポート開放はしない」方針と不整合）。LAN直SSHが不要なら`tailscale0`限定に絞る | P0（2026-07-05発見、対応はサーバー上での作業のため未実施） |
 | Tailscale ACLのタグ運用 | 現状「全デバイス許可」だが，将来スマホ・ロボット・GPU PCが増える前提でタグ（`tag:server`, `tag:robot`等）による通信制御を早めに設計しておくと後の変更が楽 | P1 |
 
 ## 6. AIエージェント（執事）の権限スコープ（関連: 04_ai-butler.md）
