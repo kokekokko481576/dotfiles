@@ -26,6 +26,19 @@ ufw enable
 セキュリティレビューで「22/tcpがAnywhere（全世界）に開いている」ことが発覚したため2026-07-05に修正。
 Tailscale障害時にもLAN経由でSSH復旧できるよう、LAN限定は残しつつ全世界への公開だけを塞いだ。
 
+### Docker × UFWのバイパス問題について（調査済み・問題なし）
+
+Dockerはiptablesを直接操作するため「UFWのルールをバイパスして全ポートが外部公開される」という
+既知の問題があるが、実機で`iptables -L INPUT`等を確認した結果、**このサーバーでは該当しない**ことを
+確認済み（2026-07-05）。理由：Dockerが`userland-proxy`（`docker-proxy`プロセスが実際にホストの
+ポートをlistenする方式）で動作しているため、公開ポートへの接続は通常のINPUT chainで正しく
+UFWの制御下に入る（`DOCKER-USER` chainは空で影響なし）。
+
+確認の結果、Immich(2283)/OpenWebUI(3000)/n8n(5678)/Uptime Kuma(3001)/Homepage(3005)は
+UFWに明示ルールがないため**Tailscale経由のみ**でLANからは遮断されていた。一方Samba(445)は
+`plan/02_network.md`の設計（LAN + Tailscale）に反してLAN許可ルールが存在しなかったため、
+`ufw allow from 192.168.11.0/24 to any port 445 proto tcp`を追加して設計通りに復元した。
+
 ## 認証情報管理
 
 | 項目 | 管理方法 |
