@@ -11,7 +11,7 @@
 | 項目 | 設定 |
 |-----|------|
 | 外部ポート開放 | なし |
-| ファイアウォール | ufw で SSH (22) のみ許可、それ以外は DROP |
+| ファイアウォール | ufw で SSH (22) は LAN(`192.168.11.0/24`)限定 + Tailscale全許可、それ以外は DROP |
 | SSH | 鍵認証のみ、パスワード認証無効 |
 | Tailscale | ACL はデフォルト（自分のデバイスのみ）|
 
@@ -19,9 +19,12 @@
 # ufw 設定
 ufw default deny incoming
 ufw allow in on tailscale0  # Tailscale 経由は全て許可
-ufw allow 22/tcp            # SSH（鍵認証のみ）
+ufw allow from 192.168.11.0/24 to any port 22 proto tcp  # SSHはLANのみ（鍵認証のみ）
 ufw enable
 ```
+
+セキュリティレビューで「22/tcpがAnywhere（全世界）に開いている」ことが発覚したため2026-07-05に修正。
+Tailscale障害時にもLAN経由でSSH復旧できるよう、LAN限定は残しつつ全世界への公開だけを塞いだ。
 
 ## 認証情報管理
 
