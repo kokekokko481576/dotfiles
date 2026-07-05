@@ -16,9 +16,19 @@
 | 対策 | 内容 | 優先度 |
 |-----|------|------|
 | swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | ~~P0~~ 完了（2026-07-05）。既に`/swap.img`(4GB)が存在していたため、`scripts/setup-swap.sh`は使わず`/swap2.img`(4GB)を追加作成して合計8GBに拡張（稼働中に既存swapを付け替えるより安全なため） |
-| zram 併用 | ディスクI/Oを避けたい場合，swapより先にzram（圧縮メモリ）を検討 | P1 |
+| zram 併用 | ディスクI/Oを避けたい場合，swapより先にzram（圧縮メモリ）を検討 | P1（未実施。2026-07-05深夜の調査で`free -h`上はswap 8GB中3.8GB使用済みを確認したが、`vmstat`のsi/soはほぼ0で活発なスワッシングは無し＝現時点ではデスクトップアプリ(Vivaldi・GNOME)含む常時稼働の「使用中の非アクティブページ」が積もっているだけで緊急degradeではないと判断。稼働中のswapを付け替える作業は無人時に試すには影響範囲が読みにくいため見送った。次回本人作業時に`sudo apt install zram-tools`等で追加を検討） |
 | docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り）。**適用直後にn8nがクラッシュループする副作用を確認**：Node.js v24がcgroupのメモリ上限からV8ヒープ上限を自動計算し、512mでは不足してOOM。`NODE_OPTIONS=--max-old-space-size=768`を追加し`mem_limit`を1024mに引き上げて解消（2026-07-05、詳細は`guide/09_トラブルシューティング.md`）。Immichの`healthcheck`も古いAPIパス（`/api/server-info/ping`→`/api/server/ping`）で誤検知していたため同時に修正 |
 | Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0（未実施・要検討：機能トレードオフのため実装者の判断待ち。`docker-compose.yml`に`profiles: ["ml"]`のコメントアウト済みの切替スイッチは用意済み） |
+
+### 1.1 新規発見：このマシンはサーバー専用機ではなくデスクトップ機を兼ねている（2026-07-05深夜）
+
+`vmstat`/`/proc`調査中に、GNOME (`gnome-shell`, `gnome-control-center`) や `vivaldi-bin`（ブラウザ、
+複数タブ分のプロセス）がswap上位を占めていることに気付いた。つまりこのRAM 7.1GB環境は
+Dockerサービス群とデスクトップ利用（本人の通常のPC作業）を同時に共有している。
+`01_hardware.md`の「約2.5GB使用予定」という見積もりはDockerサービスのみを対象にしており、
+デスクトップ利用分は含まれていない点に注意。Netdata等の追加監視サービスは，本人が実機を
+デスクトップとして使っている最中にRAMを奪う可能性があるため，今回は導入を見送った
+（`uptime-kuma`によるサービス死活監視で当面は代替）。
 
 ## 2. バックアップ戦略の具体化（関連: 00_overview.md, 03_file-server.md）
 
@@ -83,7 +93,7 @@ Uptime Kuma導入の調査中に発覚。原因は`/var/cache/samba`・`/var/lib
 | `restart: unless-stopped` | 全サービスに再起動ポリシーを明記し，サーバー再起動後の自動復旧を保証 | ~~P0~~ 確認済み：全サービスに`restart: always`（`unless-stopped`より強い復旧ポリシー）が既に設定済みだった |
 | イメージ更新の自動化方針 | Watchtowerを使う場合も自動適用は避け，「更新可能」をDiscordに通知→手動承認で `docker compose pull && up -d` する運用にする（自動更新による予期せぬ破壊を防ぐ） | P1（`scripts/update.sh`が既に手動承認フローを実現。Discord通知の追加はn8n実装後に検討） |
 | `docker compose config` での検証 | compose変更時に構文チェックを通してから適用する習慣をscripts/に組み込む | ~~P1~~ 完了（2026-07-05, `scripts/validate.sh`を追加） |
-| ボリュームのバックアップ対象明示 | 名前付きボリューム（Postgres等）もバックアップ対象に含める（bindマウントだけでは漏れる） | P0 |
+| ボリュームのバックアップ対象明示 | 名前付きボリューム（Postgres等）もバックアップ対象に含める（bindマウントだけでは漏れる） | ~~P0~~ 完了（`scripts/backup.sh`で対応済みだったことを2026-07-05深夜に確認・本項目のチェック漏れを修正。Postgresは`pg_dump`、`openwebui-data`/`uptime-kuma-data`は一時alpineコンテナ経由でステージングしてresticに含めている。`model-cache`(Immich ML)と`ollama-data`は再ダウンロード可能なキャッシュのため意図的に対象外） |
 
 ## 5. ネットワーク・セキュリティの前倒し（関連: 08_security.md）
 
