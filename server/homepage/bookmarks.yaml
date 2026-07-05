@@ -1,0 +1,7 @@
+- Other:
+    - Samba (data共有):
+        - href: smb://kokko-server-pavilion/data
+          description: smb://kokko-server-pavilion/data
+    - Butler Bot:
+        - href: https://discord.com/app
+          description: Discord内で操作 (@butler)

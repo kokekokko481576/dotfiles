@@ -186,6 +186,20 @@ services:
     restart: always
     mem_limit: 256m
 
+  # ================================================================
+  # Homepage — 全サービスへのリンク集ダッシュボード
+  # アクセス: http://kokko-server-pavilion:3005
+  # ================================================================
+  homepage:
+    container_name: homepage
+    image: ghcr.io/gethomepage/homepage:latest
+    ports:
+      - "3005:3000"
+    volumes:
+      - ./homepage:/app/config
+    restart: always
+    mem_limit: 256m
+
 volumes:
   pgdata:
   model-cache:

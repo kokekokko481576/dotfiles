@@ -1,0 +1,12 @@
+title: Home Server
+favicon: https://gethomepage.dev/favicon.ico
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  Services:
+    style: row
+    columns: 3
+  Bookmarks:
+    style: row
+    columns: 3

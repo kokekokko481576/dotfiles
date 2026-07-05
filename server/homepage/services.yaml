@@ -1,0 +1,24 @@
+- Services:
+    - Immich:
+        href: http://kokko-server-pavilion:2283
+        description: 写真・動画管理
+        siteMonitor: http://kokko-server-pavilion:2283
+        icon: immich.png
+
+    - OpenWebUI:
+        href: http://kokko-server-pavilion:3000
+        description: AIチャット (Gemini)
+        siteMonitor: http://kokko-server-pavilion:3000
+        icon: openwebui.png
+
+    - n8n:
+        href: http://kokko-server-pavilion:5678
+        description: ワークフロー自動化
+        siteMonitor: http://kokko-server-pavilion:5678
+        icon: n8n.png
+
+    - Uptime Kuma:
+        href: http://kokko-server-pavilion:3001
+        description: 死活監視
+        siteMonitor: http://kokko-server-pavilion:3001
+        icon: uptime-kuma.png

@@ -79,6 +79,15 @@ services:
 | ボリューム | 名前付きボリューム `uptime-kuma-data` |
 | 用途 | 各サービスの死活監視、Discord/Webhook通知（初回アクセス時にセットアップ必要）|
 
+### Homepage（ダッシュボード）
+
+| 項目 | 値 |
+|-----|---|
+| イメージ | `ghcr.io/gethomepage/homepage:latest` |
+| ポート | `3005:3000` |
+| 設定 | `./homepage/*.yaml`（services/bookmarks/settings/widgets） |
+| 用途 | 全サービスへのリンク集。docker.sockはマウントしていない（セキュリティ優先、siteMonitorによるHTTP到達確認のみ）|
+
 ## ディレクトリ構成
 
 ```
