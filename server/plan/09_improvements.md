@@ -30,7 +30,7 @@
 | ツール | `restic` または `borgbackup`（増分・暗号化・重複排除対応）を採用し，`rclone` でクラウド（Backblaze B2等）へ転送 | P1 |
 | 対象 | `/mnt/data/photos`, `/mnt/data/documents`, Immich/PostgresのDBダンプ，`.env`を除く設定ファイル | P0 |
 | 復元テスト | バックアップを取るだけでなく，四半期に1回程度は実際にリストアできるか検証する | P1 |
-| ディスク健全性監視 | `/dev/sdb`（1.8TB）は単一障害点。`smartmontools`（smartd）でSMART情報を監視し，異常時にDiscord通知 | P0 |
+| ディスク健全性監視 | `/dev/sdb`（1.8TB）は単一障害点。`smartmontools`（smartd）でSMART情報を監視し，異常時にDiscord通知 | ~~P0~~ 一部完了（2026-07-05, smartmontools導入・smartd有効化。現在sda/sdbともにSMART PASSED。Discord通知はButler Bot起動後に検討） |
 
 ## 3. 監視・可観測性の追加（関連: 08_security.md）
 
@@ -87,6 +87,23 @@ Uptime Kuma導入の調査中に発覚。原因は`/var/cache/samba`・`/var/lib
 |-----|------|------|
 | Wake-on-LAN | 現サーバーからGPU PCへWoLパケットを送り，Ollama利用時に自動起動できるようにする（毎回手動で電源を入れる手間を削減） | P2 |
 | ヘルスチェック連携 | Butler BotがOllamaエンドポイントの疎通を確認し，GPU PC停止中はGemini APIへ自動フォールバックする処理を早めに実装（既存方針の具体化） | P1 |
+
+## 7.1 Dockerログローテーション（新規発見・完了、2026-07-05）
+
+`/etc/docker/daemon.json`が存在せず、コンテナログ（json-file driver）にサイズ上限がなかった
+＝理論上無制限に肥大化しディスクを圧迫するリスクがあった。以下を追加し`systemctl restart docker`で反映：
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" },
+  "live-restore": true
+}
+```
+
+`live-restore: true`により、今後dockerdが再起動してもコンテナは稼働を継続する
+（今回の変更適用時は`live-restore`自体が無かった状態からの初回反映だったため、全コンテナが
+一度再起動された。数秒で全て復旧・正常化を確認済み）。
 
 ## 8. ドキュメント運用
 
