@@ -20,15 +20,15 @@
 | docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り）。**適用直後にn8nがクラッシュループする副作用を確認**：Node.js v24がcgroupのメモリ上限からV8ヒープ上限を自動計算し、512mでは不足してOOM。`NODE_OPTIONS=--max-old-space-size=768`を追加し`mem_limit`を1024mに引き上げて解消（2026-07-05、詳細は`guide/09_トラブルシューティング.md`）。Immichの`healthcheck`も古いAPIパス（`/api/server-info/ping`→`/api/server/ping`）で誤検知していたため同時に修正 |
 | Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0（未実施・要検討：機能トレードオフのため実装者の判断待ち。`docker-compose.yml`に`profiles: ["ml"]`のコメントアウト済みの切替スイッチは用意済み） |
 
-### 1.1 新規発見：このマシンはサーバー専用機ではなくデスクトップ機を兼ねている（2026-07-05深夜）
+### 1.1 実測：デスクトップ兼用機であることのRAMへの影響（2026-07-05深夜）
 
-`vmstat`/`/proc`調査中に、GNOME (`gnome-shell`, `gnome-control-center`) や `vivaldi-bin`（ブラウザ、
-複数タブ分のプロセス）がswap上位を占めていることに気付いた。つまりこのRAM 7.1GB環境は
-Dockerサービス群とデスクトップ利用（本人の通常のPC作業）を同時に共有している。
-`01_hardware.md`の「約2.5GB使用予定」という見積もりはDockerサービスのみを対象にしており、
-デスクトップ利用分は含まれていない点に注意。Netdata等の追加監視サービスは，本人が実機を
-デスクトップとして使っている最中にRAMを奪う可能性があるため，今回は導入を見送った
-（`uptime-kuma`によるサービス死活監視で当面は代替）。
+このマシンがサーバー専用機ではなくデスクトップ機を兼ねている点は`plan/10_dashboard-voice.md`で
+既に確認済みだったが（`ps aux`ベース）、今回`vmstat`/`/proc`でswap上位プロセスを確認したところ、
+GNOME (`gnome-shell`, `gnome-control-center`) や`vivaldi-bin`（ブラウザ、複数タブ分のプロセス）が
+実際にswapを多く消費していることを実測レベルで確認した（詳細は`01_hardware.md`の注意書き参照）。
+`vmstat`のsi/soはほぼ0で活発なスワッシングは無く、現時点で緊急degradeではないと判断。
+Netdata等の追加監視サービスは，本人が実機をデスクトップとして使っている最中にRAMを奪う
+可能性があるため，今回は導入を見送った（`uptime-kuma`によるサービス死活監視で当面は代替）。
 
 ## 2. バックアップ戦略の具体化（関連: 00_overview.md, 03_file-server.md）
 

@@ -54,24 +54,24 @@ PC での長い対話や、モデル切替が必要な場面で使用。
         │
         ▼
 [エージェントコア]  ←── ツール群
-        │               ├── Google Calendar API
-        │               ├── Switchbot API
-        │               ├── ファイルシステム操作
-        │               ├── ROS2 Bridge（Phase 3）
-        │               └── Web検索
+        │               ├── シェル実行・ファイル操作（実装済み。plan/11_agent-control.md）
+        │               ├── Google Calendar API（未実装）
+        │               ├── Switchbot API（未実装）
+        │               ├── ROS2 Bridge（Phase 3、未実装）
+        │               └── Web検索（未実装）
         ▼
 [LLM バックエンド]
-  Phase 1: Gemini API（Google）
+  Phase 1: Vertex AI Gemini（LiteLLM経由、GEMINI_API_KEYクレジット枯渇のためこちらに移行）
   Phase 2: Ollama on GPU PC（Tailscale 経由 http://gpu-pc:11434）
-  フォールバック: GPU PC 停止時は Gemini API に自動切替
+  フォールバック: GPU PC 停止時は Vertex AI Gemini に自動切替
 ```
 
 ## Phase 1 技術スタック
 
 | コンポーネント | 採用技術 | 理由 |
 |-------------|---------|------|
-| LLM | Gemini API (gemini-2.0-flash) | クレジット活用、高性能 |
-| エージェントフレームワーク | LangGraph または n8n | ツール呼び出し・状態管理 |
+| LLM | Vertex AI Gemini 2.5 Flash/Pro（LiteLLM経由）| AI StudioのGEMINI_API_KEYクレジット枯渇のため移行（`gemini-2.0-flash`系はこのプロジェクトでは404）|
+| エージェントフレームワーク | 自前実装（`ai/src/bot.py`のOpenAI tool-calling loop）| n8n/LangGraphは未採用のまま、シェル/ファイル操作ツールは自前実装で十分だったため |
 | Discord 連携 | discord.py | Python エコシステムと統合しやすい |
 | カレンダー | Google Calendar API | Googleクレジットと同じアカウント |
 | スケジューラ | APScheduler (Python) または n8n のCronノード | 能動通知のトリガー |
@@ -109,7 +109,9 @@ PC での長い対話や、モデル切替が必要な場面で使用。
 
 ## 未決定事項
 
-- [ ] n8n vs LangGraph vs 自前実装の最終決定
+- [x] n8n vs LangGraph vs 自前実装の最終決定 — シェル/ファイル操作ツールについては自前実装
+      （OpenAI tool-calling loop）を採用済み（2026-07-05）。カレンダー等の外部サービス連携で
+      改めてn8n/LangGraphが要るかは引き続き未定
 - [ ] Googleカレンダーの OAuth 認証フロー
 - [ ] MTG資料の出力形式（Markdown / PowerPoint）
 - [x] ファイル操作の権限スコープ（何でもやらせるのは危険） — 決定・実装済み（2026-07-05）。
