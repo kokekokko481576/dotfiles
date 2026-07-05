@@ -15,7 +15,7 @@
 
 | 対策 | 内容 | 優先度 |
 |-----|------|------|
-| swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | ~~P0~~ → `scripts/setup-swap.sh` を用意済み（2026-07-05）。実行はサーバー上で要承認 |
+| swap の確保 | 4〜8GB程度のswapファイルを作成し，OOM Killerによる突然のプロセス終了を防ぐ | ~~P0~~ 完了（2026-07-05）。既に`/swap.img`(4GB)が存在していたため、`scripts/setup-swap.sh`は使わず`/swap2.img`(4GB)を追加作成して合計8GBに拡張（稼働中に既存swapを付け替えるより安全なため） |
 | zram 併用 | ディスクI/Oを避けたい場合，swapより先にzram（圧縮メモリ）を検討 | P1 |
 | docker-compose にリソース上限を設定 | 各サービスに `mem_limit` / `cpus` を設定し，1サービスの暴走が他サービスを巻き込まないようにする | ~~P0~~ 完了（2026-07-05, `mem_limit`のみ設定。`cpus`はコア数が少ないため見送り）。**適用直後にn8nがクラッシュループする副作用を確認**：Node.js v24がcgroupのメモリ上限からV8ヒープ上限を自動計算し、512mでは不足してOOM。`NODE_OPTIONS=--max-old-space-size=768`を追加し`mem_limit`を1024mに引き上げて解消（2026-07-05、詳細は`guide/09_トラブルシューティング.md`）。Immichの`healthcheck`も古いAPIパス（`/api/server-info/ping`→`/api/server/ping`）で誤検知していたため同時に修正 |
 | Immich MLの明示的無効化 | 顔認識・スマート検索はメモリを多く使うため，Phase 1では `MACHINE_LEARNING_ENABLED=false` 等で明示的に切る | P0（未実施・要検討：機能トレードオフのため実装者の判断待ち。`docker-compose.yml`に`profiles: ["ml"]`のコメントアウト済みの切替スイッチは用意済み） |
@@ -40,13 +40,13 @@
 |-------|-----|----------|------|
 | Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://kokko-server-pavilion:3001`で初期設定・監視対象の登録が必要）。**導入直後に監視の意義を実証**：samba・immich-serverの`unhealthy`状態を発見するきっかけになった |
 
-### 3.1 新規発見：sambaコンテナがSMB接続を受け付けていない（P0、未解決）
+### 3.1 新規発見：sambaコンテナがSMB接続を受け付けていない（~~P0~~ 解決済み、2026-07-05）
 
-Uptime Kuma導入の調査中に発覚。`docker ps`でsambaが常時`unhealthy`。メモリ不足ではないことを確認済み
-（`mem_limit`とは無関係、`oom_kill: 0`）。smbd本体プロセスが安定して起動しておらず、手動でのフォアグラウンド
-起動でもSMB接続を受け付けない＝ポート445へのバインドが起きていない可能性。root権限での`dmesg`調査が必要
-（詳細は`guide/09_トラブルシューティング.md`）。**ファイル共有機能そのものが使えていない可能性があるため
-優先度高。次回ログイン時にrootで調査すること。**
+Uptime Kuma導入の調査中に発覚。原因は`/var/cache/samba`・`/var/lib/samba`（実体は`/data/cache`・
+`/data/lib`＝ホストの`/mnt/data`配下）の所有者が過去の設定のまま`uid 1000`で残っており、
+現在`root`で起動するsmbdの厳格な所有者チェックに引っかかって即終了していたため。
+`chown -R root:root /data/cache /data/lib`で解消、SMB接続が復旧し60秒間の安定稼働を確認済み。
+詳細は`guide/09_トラブルシューティング.md`参照。
 | Netdata | リアルタイムのCPU/RAM/ディスク監視。Prometheus+Grafanaより軽量 | 〜150MB | P1 |
 | Prometheus + Grafana | 本格的な可観測性がほしくなった段階（Phase 2以降，GPU PC側での運用も検討） | 重い | P2 |
 
