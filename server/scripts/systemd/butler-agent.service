@@ -1,0 +1,14 @@
+[Unit]
+Description=Butler Bot host-side command executor (privileged operations, runs as kokko)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/python3 /home/kokko/dotfiles/server/scripts/agent_executor.py
+User=kokko
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

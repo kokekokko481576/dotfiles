@@ -204,9 +204,13 @@ services:
     build: ./ai
     volumes:
       - /mnt/data/ai/context:/app/context
+      # ホスト実行エージェント(scripts/agent_executor.py、systemdでkokkoユーザーとして常駐)との
+      # Unixソケット通信用。詳細は plan/11_agent-control.md 参照
+      - /mnt/data/ai/agent:/app/agent-socket
     env_file: .env
     environment:
       - TZ=Asia/Tokyo
+      - AGENT_SOCKET_PATH=/app/agent-socket/butler-agent.sock
     restart: unless-stopped
     mem_limit: 256m
     profiles:
