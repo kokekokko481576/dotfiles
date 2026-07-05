@@ -26,7 +26,7 @@ sudo docker exec -it samba smbpasswd kokko
 2. メニュー: **「移動」** → **「サーバへ接続...」** (⌘K)
 3. 以下を入力：
    ```
-   smb://server/data
+   smb://kokko-server-pavilion/data
    ```
 4. ユーザー名: `kokko`、パスワード: 先ほど設定したもの
 
@@ -63,11 +63,11 @@ data/
 sudo apt-get install -y cifs-utils
 
 # マウント
-sudo mount -t cifs //server/data /mnt/remote \
+sudo mount -t cifs //kokko-server-pavilion/data /mnt/remote \
   -o username=kokko,password=パスワード,uid=$(id -u),gid=$(id -g)
 
 # 自動マウント（/etc/fstab に追加）
-//server/data  /mnt/remote  cifs  username=kokko,password=パスワード,uid=1000,gid=1000,nofail  0  0
+//kokko-server-pavilion/data  /mnt/remote  cifs  username=kokko,password=パスワード,uid=1000,gid=1000,nofail  0  0
 ```
 
 ---

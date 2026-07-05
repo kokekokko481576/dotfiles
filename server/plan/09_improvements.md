@@ -38,7 +38,7 @@
 
 | ツール | 用途 | メモリ目安 | 優先度 |
 |-------|-----|----------|------|
-| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://server:3001`で初期設定・監視対象の登録が必要）|
+| Uptime Kuma | サービスの死活監視＋Discord/Webhook通知。UIも軽い | 〜100MB | ~~P0~~ 完了（2026-07-05, `docker-compose.yml`に追加。`http://kokko-server-pavilion:3001`で初期設定・監視対象の登録が必要）|
 | Netdata | リアルタイムのCPU/RAM/ディスク監視。Prometheus+Grafanaより軽量 | 〜150MB | P1 |
 | Prometheus + Grafana | 本格的な可観測性がほしくなった段階（Phase 2以降，GPU PC側での運用も検討） | 重い | P2 |
 

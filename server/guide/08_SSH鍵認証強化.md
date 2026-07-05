@@ -22,7 +22,7 @@
 別のターミナルを開き、以下でSSH接続テストをします：
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 kokko@server
+ssh -i ~/.ssh/id_ed25519 kokko@kokko-server-pavilion
 ```
 
 「Welcome to Ubuntu...」と出て接続できればOKです。
@@ -61,10 +61,10 @@ sudo systemctl reload sshd
 
 ```bash
 # 鍵認証で接続できることを確認
-ssh kokko@server
+ssh kokko@kokko-server-pavilion
 
 # パスワード認証が拒否されることを確認（-o で鍵認証を一時無効化）
-ssh -o PubkeyAuthentication=no kokko@server
+ssh -o PubkeyAuthentication=no kokko@kokko-server-pavilion
 # → "Permission denied (publickey)" と出ればOK
 ```
 
@@ -91,11 +91,11 @@ Anywhere on tailscale0     ALLOW IN    Anywhere
 
 ## クライアント側の~/.ssh/config 設定（Mac/Linux）
 
-接続元マシンに以下を追加すると `ssh server` だけで接続できます：
+接続元マシンに以下を追加すると `ssh homeserver` だけで接続できます：
 
 ```
 Host homeserver
-  HostName server
+  HostName kokko-server-pavilion
   User kokko
   IdentityFile ~/.ssh/id_ed25519
 ```

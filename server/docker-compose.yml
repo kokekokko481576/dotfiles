@@ -2,7 +2,7 @@ services:
 
   # ================================================================
   # Immich — 写真・動画管理（Google Photos 代替）
-  # アクセス: http://server:2283
+  # アクセス: http://kokko-server-pavilion:2283
   # ================================================================
   immich-server:
     container_name: immich_server
@@ -96,7 +96,7 @@ services:
 
   # ================================================================
   # Samba — ファイル共有（Linux / macOS / Windows からアクセス）
-  # アクセス: smb://server/data
+  # アクセス: smb://kokko-server-pavilion/data
   # ================================================================
   samba:
     container_name: samba
@@ -113,7 +113,7 @@ services:
 
   # ================================================================
   # OpenWebUI — AIチャットUI（Gemini / Ollama 共通フロントエンド）
-  # アクセス: http://server:3000
+  # アクセス: http://kokko-server-pavilion:3000
   # ================================================================
   openwebui:
     container_name: openwebui
@@ -135,7 +135,7 @@ services:
 
   # ================================================================
   # n8n — ワークフロー自動化（Googleカレンダー連携・通知）
-  # アクセス: http://server:5678
+  # アクセス: http://kokko-server-pavilion:5678
   # ================================================================
   n8n:
     container_name: n8n
@@ -150,7 +150,7 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
       - GENERIC_TIMEZONE=Asia/Tokyo
       - TZ=Asia/Tokyo
-      - WEBHOOK_URL=http://server:5678/
+      - WEBHOOK_URL=http://kokko-server-pavilion:5678/
     restart: always
     mem_limit: 512m
 
@@ -173,7 +173,7 @@ services:
 
   # ================================================================
   # Uptime Kuma — サービス死活監視（軽量）
-  # アクセス: http://server:3001
+  # アクセス: http://kokko-server-pavilion:3001
   # ================================================================
   uptime-kuma:
     container_name: uptime_kuma

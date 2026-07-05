@@ -9,7 +9,7 @@ Immich は自己ホスト型の Google Photos 代替です。
 
 ## ステップ1: 管理者アカウントの作成
 
-1. http://server:2283 にアクセス（Tailscale接続必須）
+1. http://kokko-server-pavilion:2283 にアクセス（Tailscale接続必須）
 2. **「アカウントを作成する」** 画面が表示される
 3. 以下を入力：
    - 名前: 好きな名前
@@ -38,7 +38,7 @@ Immich は自己ホスト型の Google Photos 代替です。
 ### アプリの設定
 
 1. アプリを開く
-2. サーバーURL: `http://server:2283`（Tailscale接続中）
+2. サーバーURL: `http://kokko-server-pavilion:2283`（Tailscale接続中）
 3. 先ほど作ったアカウントでログイン
 
 ---

@@ -82,5 +82,5 @@ Immich の共有リンクを使う場合：
 ## 実施済み
 
 - [x] docker-compose.yml 全サービスに`mem_limit`を設定（RAM 7.1GB環境でのOOM対策、2026-07-05）
-- [x] Uptime Kuma を追加（サービス死活監視、`http://server:3001`、2026-07-05）
+- [x] Uptime Kuma を追加（サービス死活監視、`http://kokko-server-pavilion:3001`、2026-07-05）
 - [x] `scripts/validate.sh` で `docker compose config` 構文チェックを追加（2026-07-05）

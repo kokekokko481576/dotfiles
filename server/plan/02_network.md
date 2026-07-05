@@ -39,7 +39,7 @@
 ```bash
 # ~/.ssh/config（クライアント側）に追加する想定
 Host homeserver
-  HostName server          # Tailscale MagicDNS
+  HostName kokko-server-pavilion   # Tailscale MagicDNS
   User kokko
   IdentityFile ~/.ssh/id_ed25519
 ```

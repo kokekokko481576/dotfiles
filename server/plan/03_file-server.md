@@ -39,7 +39,7 @@ UUID=<sdb-uuid>  /mnt/data  ext4  defaults,nofail  0  2
 |-----|------|
 | ポート | 2283 |
 | データ保存先 | /mnt/data/photos |
-| アクセス | Tailscale 経由（http://server:2283）|
+| アクセス | Tailscale 経由（http://kokko-server-pavilion:2283）|
 | 外部共有 | アルバム共有リンク機能を使用（パスワード設定可）|
 | スマホ連携 | Immich アプリで自動アップロード |
 
