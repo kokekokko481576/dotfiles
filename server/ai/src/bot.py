@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 # ---- 環境変数 ----
-DISCORD_TOKEN       = os.environ["DISCORD_TOKEN"]
+DISCORD_TOKEN       = os.environ["DISCORD_TOKEN_BUTLER"]
 DISCORD_GUILD_ID    = int(os.environ["DISCORD_GUILD_ID"])
 CHANNEL_NOTIFY      = int(os.environ.get("DISCORD_CHANNEL_NOTIFY", "0"))
 CHANNEL_CHAT        = int(os.environ.get("DISCORD_CHANNEL_CHAT", "0"))
@@ -38,6 +38,10 @@ DISCORD_OWNER_ID    = int(os.environ["DISCORD_OWNER_ID"]) if os.environ.get("DIS
 AGENT_SOCKET_PATH   = os.environ.get("AGENT_SOCKET_PATH", "/app/agent-socket/butler-agent.sock")
 AGENT_AUDIT_LOG     = CONTEXT_DIR / "agent_audit.jsonl"
 MAX_TOOL_ITERATIONS = 8
+
+# n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー、Google Calendar連携)。
+# 同じdocker composeネットワーク上のn8nサービスにコンテナ名で到達する（詳細: guide/06_n8n設定.md）。
+N8N_TODAY_SCHEDULE_URL = os.environ.get("N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
 CONFIRM_TIMEOUT_SEC = 300
 
 # ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
@@ -125,6 +129,38 @@ async def request_confirmation(channel, requester, tool_name: str, args: dict) -
     return approved
 
 
+async def fetch_today_schedule() -> str:
+    """n8nのWebhook経由で今日のGoogleカレンダー予定を取得し、整形済みテキストを返す。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                N8N_TODAY_SCHEDULE_URL, timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                if resp.status != 200:
+                    return f"（カレンダー取得に失敗しました: HTTP {resp.status}）"
+                events = await resp.json()
+    except Exception as e:
+        log.error(f"calendar fetch error: {e}")
+        return f"（カレンダー取得に失敗しました: {e}）"
+
+    if not events:
+        return "今日の予定はありません。"
+
+    def sort_key(e):
+        start = e.get("start", {})
+        return start.get("dateTime") or start.get("date") or ""
+
+    lines = []
+    for e in sorted(events, key=sort_key):
+        summary = e.get("summary", "(無題)")
+        start = e.get("start", {})
+        if "dateTime" in start:
+            lines.append(f"・{start['dateTime'][11:16]} {summary}")
+        else:
+            lines.append(f"・終日 {summary}")
+    return "\n".join(lines)
+
+
 async def run_agent_turn(channel, requester, messages: list) -> str:
     """ツール呼び出し込みでLLMと対話し、最終的なテキスト返答を返す。"""
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -163,7 +199,12 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                 approved = await request_confirmation(channel, requester, name, args)
 
             if approved:
-                result = await agent_tools.execute_tool(AGENT_SOCKET_PATH, name, args)
+                if name == "get_today_schedule":
+                    # ホスト実行エージェント(ソケット)を介さず、Bot自身がn8n Webhookに直接問い合わせる
+                    # (ホストのシェル・ファイル操作ではないため権限分離の対象外)
+                    result = {"ok": True, "output": await fetch_today_schedule()}
+                else:
+                    result = await agent_tools.execute_tool(AGENT_SOCKET_PATH, name, args)
             else:
                 result = {"ok": False, "output": "ユーザーが承認しませんでした。"}
 
@@ -263,10 +304,11 @@ async def daily_briefing():
     if not ch:
         return
     now = datetime.now()
+    schedule = await fetch_today_schedule()
     msg = (
         f"**おはようございます。{now.strftime('%Y年%m月%d日')}です。**\n"
-        "・サーバー稼働中\n"
-        "・Googleカレンダー連携は n8n で設定してください（guide/06_n8n設定.md）"
+        "・サーバー稼働中\n\n"
+        f"**今日の予定**\n{schedule}"
     )
     await ch.send(msg)
 

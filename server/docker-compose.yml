@@ -185,8 +185,14 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
       - GENERIC_TIMEZONE=Asia/Tokyo
       - TZ=Asia/Tokyo
-      - WEBHOOK_URL=http://kokko-server-pavilion:5678/
+      # Google OAuth(Calendar連携)はリダイレクトURIがHTTPS必須＆Public Suffix List基準の
+      # ドメイン検証があるため、`tailscale serve --bg 5678`でHTTPS化したTailscale MagicDNSの
+      # フルFQDN(443番、パス省略)を使用（詳細: guide/06_n8n設定.md, 09_トラブルシューティング.md）。
+      - WEBHOOK_URL=https://kokko-server-pavilion.tailed0412.ts.net/
       - NODE_OPTIONS=--max-old-space-size=768
+      # HTTPS無しでアクセスしているため、n8nのSecure Cookie要求を無効化。
+      # Tailscale経由のみ許可(08_security.md)で通信路自体は暗号化されているため許容している。
+      - N8N_SECURE_COOKIE=false
     restart: always
     mem_limit: 1024m
     healthcheck:
@@ -211,10 +217,60 @@ services:
     environment:
       - TZ=Asia/Tokyo
       - AGENT_SOCKET_PATH=/app/agent-socket/butler-agent.sock
+      # n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー)。
+      # 同じdocker composeネットワーク上なのでサービス名で到達できる（詳細: guide/06_n8n設定.md）。
+      - N8N_TODAY_SCHEDULE_URL=http://n8n:5678/webhook/today-schedule
     restart: unless-stopped
     mem_limit: 256m
     profiles:
       - butler  # APIキー設定後に有効化するため通常起動から除外
+    depends_on:
+      - n8n
+
+  # ================================================================
+  # Task Agent — GitHub Project連携のタスク管理エージェント兼思考ログ
+  # (plan/12_task-management.md)。常時起動はせず、systemd timer(scripts/systemd/
+  # task-agent-*.timer)が1日2回 `docker compose run --rm` する。手動での動作確認:
+  #   docker compose --profile task-agent run --rm task-agent-recommend
+  #   docker compose --profile task-agent run --rm task-agent-collect
+  # ================================================================
+  task-agent-recommend:
+    container_name: task_agent_recommend
+    build: ./task-agent
+    command: ["python", "-u", "job_recommend.py"]
+    # GitHub/Ollama関連はtask-agent固有の設定としてtask-agent/.envから読む。
+    # Discordのトークン・チャンネルはserver/.env（DISCORD_TOKEN_OLLAMA/DISCORD_CHANNEL_OLLAMA、
+    # butler-botのDISCORD_TOKEN_BUTLERとは別の専用Bot）から個別に渡す。他の秘密情報
+    # (Immich/n8n/restic等)まではコンテナに渡さないため、server/.env全体は読ませていない。
+    env_file: ./task-agent/.env
+    environment:
+      - TZ=Asia/Tokyo
+      - DISCORD_TOKEN=${DISCORD_TOKEN_OLLAMA}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_OLLAMA}
+    volumes:
+      - /mnt/data/ai/task-agent:/app/data
+    depends_on:
+      - ollama
+    mem_limit: 256m
+    profiles:
+      - task-agent
+
+  task-agent-collect:
+    container_name: task_agent_collect
+    build: ./task-agent
+    command: ["python", "-u", "job_collect.py"]
+    env_file: ./task-agent/.env
+    environment:
+      - TZ=Asia/Tokyo
+      - DISCORD_TOKEN=${DISCORD_TOKEN_OLLAMA}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_OLLAMA}
+    volumes:
+      - /mnt/data/ai/task-agent:/app/data
+    depends_on:
+      - ollama
+    mem_limit: 256m
+    profiles:
+      - task-agent
 
   # ================================================================
   # Uptime Kuma — サービス死活監視（軽量）

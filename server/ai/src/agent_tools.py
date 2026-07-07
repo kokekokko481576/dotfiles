@@ -69,6 +69,17 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_today_schedule",
+            "description": (
+                "Googleカレンダーから今日の予定一覧を取得する(n8n経由)。"
+                "「今日の予定は?」等と聞かれたら使う。ホスト実行エージェントは経由しない。"
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 # 認証情報・秘密鍵など、エージェントに読み書きさせてはいけないパス(部分一致・大文字小文字無視)。
