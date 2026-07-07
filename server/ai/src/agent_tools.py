@@ -80,6 +80,36 @@ TOOLS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Web検索を行い、上位の検索結果(タイトル・URL・スニペット)を返す。"
+                "最新情報や知らない話題を調べるときに使う。ホスト実行エージェントは経由しない。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string", "description": "検索クエリ"}},
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_url",
+            "description": (
+                "指定したURLのWebページ内容を取得し、HTMLタグを除いたテキストとして返す。"
+                "ホスト実行エージェントは経由しない。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"url": {"type": "string", "description": "取得するURL(http/https)"}},
+                "required": ["url"],
+            },
+        },
+    },
 ]
 
 # 認証情報・秘密鍵など、エージェントに読み書きさせてはいけないパス(部分一致・大文字小文字無視)。

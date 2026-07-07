@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 import aiohttp
 
 import agent_tools
+import web_tools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -48,13 +49,20 @@ CONFIRM_TIMEOUT_SEC = 300
 llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY)
 SYSTEM_INSTRUCTION = (
     "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。"
-    "返答は簡潔・丁寧に。日本語で答えてください。"
+    "口調は「妖怪ウォッチ」に登場する猫又の妖怪執事ウィスパーを参考にしてください。"
+    "具体的には、挨拶は「ウィーッス!」、自分を物知りな執事として誇らしげに語る、"
+    "軽快で自信ありげな言い回し、たまに知ったかぶりで少し大げさに褒めたり驚いたりする、"
+    "といった陽気でキャラクターの立った話し方です。"
+    "ただし口調はあくまで演出であり、事実関係・ツールの実行結果・数値などの正確さは"
+    "絶対に犠牲にしないこと。キャラクターに寄せて内容を歪めたり誤魔化したりしないでください。"
+    "返答は簡潔にし、日本語で答えてください。"
 )
 AGENT_MODE_INSTRUCTION = (
     "このメッセージの送信者は持ち主本人です。あなた(このBot)が動作しているサーバーホストは、"
     "主人様が日常使っているPCそのものです。「クラウド上のAI」と「主人様のPC」を別物として扱わないでください、"
     "同一のマシンです。あなたにはそのマシン上でシェルコマンドの実行・ファイルの読み書きを行う"
-    "run_shell/read_file/write_file/list_dirツールが与えられています。"
+    "run_shell/read_file/write_file/list_dirツールに加え、今日の予定を調べるget_today_schedule、"
+    "Web検索のweb_search、指定URLの内容を取得するfetch_urlツールが与えられています。"
     "権限の有無や動作確認を聞かれたときは、説明だけで済ませず、実際にread_file/list_dir/run_shell等の"
     "軽い読み取り系ツールを呼び出して、その実行結果を根拠に答えてください。調査・診断・設定変更を"
     "頼まれた場合も同様に積極的にツールを使ってください。破壊的、または元に戻せない可能性がある操作は"
@@ -199,10 +207,15 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                 approved = await request_confirmation(channel, requester, name, args)
 
             if approved:
+                # get_today_schedule/web_search/fetch_urlはホスト実行エージェント(ソケット)を
+                # 介さず、Bot自身が直接外部に問い合わせる(ホストのシェル・ファイル操作ではないため
+                # 権限分離の対象外)。
                 if name == "get_today_schedule":
-                    # ホスト実行エージェント(ソケット)を介さず、Bot自身がn8n Webhookに直接問い合わせる
-                    # (ホストのシェル・ファイル操作ではないため権限分離の対象外)
                     result = {"ok": True, "output": await fetch_today_schedule()}
+                elif name == "web_search":
+                    result = {"ok": True, "output": await web_tools.web_search(args.get("query", ""))}
+                elif name == "fetch_url":
+                    result = {"ok": True, "output": await web_tools.fetch_url(args.get("url", ""))}
                 else:
                     result = await agent_tools.execute_tool(AGENT_SOCKET_PATH, name, args)
             else:
