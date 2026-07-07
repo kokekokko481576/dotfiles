@@ -47,14 +47,17 @@ CONFIRM_TIMEOUT_SEC = 300
 
 # ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
 llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY)
+
+# Botはインターネット検索がほぼ使えない(web_tools.web_searchはDuckDuckGo側のbot対策で
+# ブロックされる)ため、キャラクターの口調はモデルの曖昧な知識に頼らず、このファイルで
+# 明示的に与える。
+PERSONA_FILE = Path(__file__).parent / "persona_whisper.md"
+PERSONA_STYLE = PERSONA_FILE.read_text(encoding="utf-8") if PERSONA_FILE.exists() else ""
+
 SYSTEM_INSTRUCTION = (
-    "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。"
-    "口調は「妖怪ウォッチ」に登場する猫又の妖怪執事ウィスパーを参考にしてください。"
-    "具体的には、挨拶は「ウィーッス!」、自分を物知りな執事として誇らしげに語る、"
-    "軽快で自信ありげな言い回し、たまに知ったかぶりで少し大げさに褒めたり驚いたりする、"
-    "といった陽気でキャラクターの立った話し方です。"
-    "ただし口調はあくまで演出であり、事実関係・ツールの実行結果・数値などの正確さは"
-    "絶対に犠牲にしないこと。キャラクターに寄せて内容を歪めたり誤魔化したりしないでください。"
+    "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。\n"
+    "以下は口調・キャラクターの参考資料です。これに厳密に沿って話してください。\n\n"
+    f"{PERSONA_STYLE}\n\n"
     "返答は簡潔にし、日本語で答えてください。"
 )
 AGENT_MODE_INSTRUCTION = (
