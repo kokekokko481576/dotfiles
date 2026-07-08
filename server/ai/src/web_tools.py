@@ -1,11 +1,16 @@
 """
-Web閲覧ツール(検索・URL取得)。APIキー不要でDuckDuckGoのHTML版を使う。
+Web閲覧ツール(検索・URL取得)。
 
 run_shell/read_file等と違い、ホスト実行エージェント(Unixソケット)は経由しない。
 外部インターネットへのHTTPリクエストであり、ホスト側のシェル・ファイルアクセスとは
 異なる権限を必要としないため、Botコンテナ自身が直接行う。
+
+検索はGoogle Custom Search JSON APIを使う(要.envのGOOGLE_CSE_API_KEY/GOOGLE_CSE_ID)。
+以前はAPIキー不要のDuckDuckGo HTML版スクレイピングだったが、このサーバーのIPからの
+アクセスがDuckDuckGo側のbot対策(画像認証)で常にブロックされることを確認したため撤退した
+(詳細: project_homeserverメモリ)。
 """
-import re
+import os
 import logging
 from html.parser import HTMLParser
 
@@ -15,6 +20,9 @@ log = logging.getLogger(__name__)
 
 _UA = "Mozilla/5.0 (compatible; ButlerBot/1.0)"
 _TIMEOUT = aiohttp.ClientTimeout(total=15)
+
+_GOOGLE_CSE_API_KEY = os.environ.get("GOOGLE_CSE_API_KEY", "")
+_GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID", "")
 
 
 class _TextExtractor(HTMLParser):
@@ -52,59 +60,42 @@ def _html_to_text(html: str) -> str:
     return parser.get_text()
 
 
-def _strip_tags(s: str) -> str:
-    return re.sub(r"<[^>]+>", "", s).strip()
-
-
 async def web_search(query: str, num_results: int = 5) -> str:
-    """DuckDuckGoのHTML版(APIキー不要)から検索結果を取得する。
+    """Google Custom Search JSON APIで検索する。"""
+    if not _GOOGLE_CSE_API_KEY or not _GOOGLE_CSE_ID:
+        return "（Web検索は未設定です。持ち主に.envのGOOGLE_CSE_API_KEY/GOOGLE_CSE_ID設定を依頼してください。）"
 
-    注意: このサーバーのIPからのアクセスはDuckDuckGo側のbot対策(画像認証)に
-    引っかかり、常に失敗する状態を2026-07-08時点で確認済み。根本的に解決するには
-    Google Custom Search API / Bing Search API等の(要サインアップ・APIキー)有償/無償
-    APIへの切り替えが必要（詳細: guide/11またはproject_homeserverメモリ参照）。
-    """
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://html.duckduckgo.com/html/",
-                data={"q": query},
-                headers={"User-Agent": _UA},
+            async with session.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={
+                    "key": _GOOGLE_CSE_API_KEY,
+                    "cx": _GOOGLE_CSE_ID,
+                    "q": query,
+                    "num": max(1, min(num_results, 10)),
+                },
                 timeout=_TIMEOUT,
             ) as resp:
-                status = resp.status
-                html = await resp.text()
+                data = await resp.json()
+                if resp.status != 200:
+                    err = data.get("error", {}).get("message", f"HTTP {resp.status}")
+                    log.error(f"web_search error: {err}")
+                    return f"（検索に失敗しました: {err}）"
     except Exception as e:
         log.error(f"web_search error: {e}")
         return f"（検索に失敗しました: {e}）"
 
-    if "anomaly-modal" in html or "bots use DuckDuckGo too" in html:
-        return (
-            "（検索エンジン側のbot対策(画像認証)によりブロックされました。"
-            "このツールは現状使えません。持ち主にAPIキー方式の検索API導入を依頼してください。）"
-        )
-    if status != 200:
-        return f"（検索に失敗しました: HTTP {status}）"
-
-    # DuckDuckGo HTML版の検索結果マークアップ: <a class="result__a" href="URL">タイトル</a>
-    titles_urls = re.findall(
-        r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
-        html,
-        re.DOTALL,
-    )
-    snippets = re.findall(
-        r'<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
-        html,
-        re.DOTALL,
-    )
-
-    if not titles_urls:
+    items = data.get("items", [])
+    if not items:
         return "検索結果が見つかりませんでした。"
 
     lines = []
-    for i, (url, title) in enumerate(titles_urls[:num_results]):
-        snippet = _strip_tags(snippets[i]) if i < len(snippets) else ""
-        lines.append(f"{i + 1}. {_strip_tags(title)}\n   {url}\n   {snippet}")
+    for i, item in enumerate(items[:num_results], 1):
+        title = item.get("title", "")
+        link = item.get("link", "")
+        snippet = item.get("snippet", "").replace("\n", " ")
+        lines.append(f"{i}. {title}\n   {link}\n   {snippet}")
     return "\n".join(lines)
 
 
