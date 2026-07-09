@@ -240,14 +240,17 @@ services:
     ports:
       # tailscale serveの中継先。tailnet外に晒さないようloopbackのみにバインド
       - "127.0.0.1:8090:8090"
-    env_file:
-      # GitHub関連(GITHUB_TOKEN等)はtask-agentと同じファイルを共用し、設定箇所を1つにする。
-      # ファイル未作成(GitHub未設定)でも起動できるよう required: false → モックモードになる
-      - path: ./task-agent/.env
-        required: false
+    # GitHub関連はserver/.envに集約(ユーザー要望で設定ファイルを1つに)。
+    # server/.env全体は渡さず、必要な変数だけ${}補間で渡す(compose起動時に
+    # このディレクトリの.envから解決される)。未設定ならモックモードで動く
     environment:
       - TZ=Asia/Tokyo
       - DATA_DIR=/app/data
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_PROJECT_OWNER=${GITHUB_PROJECT_OWNER:-}
+      - GITHUB_PROJECT_OWNER_TYPE=${GITHUB_PROJECT_OWNER_TYPE:-user}
+      - GITHUB_PROJECT_NUMBER=${GITHUB_PROJECT_NUMBER:-0}
+      - GITHUB_STATUS_FIELD_NAME=${GITHUB_STATUS_FIELD_NAME:-Status}
     volumes:
       - /mnt/data/ai/wani:/app/data
     restart: unless-stopped
@@ -268,11 +271,20 @@ services:
     # Discordのトークン・チャンネルはserver/.env（DISCORD_TOKEN_OLLAMA/DISCORD_CHANNEL_OLLAMA、
     # butler-botのDISCORD_TOKEN_BUTLERとは別の専用Bot）から個別に渡す。他の秘密情報
     # (Immich/n8n/restic等)まではコンテナに渡さないため、server/.env全体は読ませていない。
-    env_file: ./task-agent/.env
+    env_file:
+      # GitHub設定はserver/.envに移行済み(下のenvironmentで補間)。このファイルは
+      # ローカル直接実行用の名残で、無くてもよい
+      - path: ./task-agent/.env
+        required: false
     environment:
       - TZ=Asia/Tokyo
       - DISCORD_TOKEN=${DISCORD_TOKEN_OLLAMA}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_OLLAMA}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_PROJECT_OWNER=${GITHUB_PROJECT_OWNER:-}
+      - GITHUB_PROJECT_OWNER_TYPE=${GITHUB_PROJECT_OWNER_TYPE:-user}
+      - GITHUB_PROJECT_NUMBER=${GITHUB_PROJECT_NUMBER:-0}
+      - GITHUB_STATUS_FIELD_NAME=${GITHUB_STATUS_FIELD_NAME:-Status}
     volumes:
       - /mnt/data/ai/task-agent:/app/data
     depends_on:
@@ -285,11 +297,20 @@ services:
     container_name: task_agent_collect
     build: ./task-agent
     command: ["python", "-u", "job_collect.py"]
-    env_file: ./task-agent/.env
+    env_file:
+      # GitHub設定はserver/.envに移行済み(下のenvironmentで補間)。このファイルは
+      # ローカル直接実行用の名残で、無くてもよい
+      - path: ./task-agent/.env
+        required: false
     environment:
       - TZ=Asia/Tokyo
       - DISCORD_TOKEN=${DISCORD_TOKEN_OLLAMA}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_OLLAMA}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_PROJECT_OWNER=${GITHUB_PROJECT_OWNER:-}
+      - GITHUB_PROJECT_OWNER_TYPE=${GITHUB_PROJECT_OWNER_TYPE:-user}
+      - GITHUB_PROJECT_NUMBER=${GITHUB_PROJECT_NUMBER:-0}
+      - GITHUB_STATUS_FIELD_NAME=${GITHUB_STATUS_FIELD_NAME:-Status}
     volumes:
       - /mnt/data/ai/task-agent:/app/data
     depends_on:
