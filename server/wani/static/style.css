@@ -1,0 +1,132 @@
+/* ワニ博士 PWA — レトロゲーム機風の配色。ライト/ダーク両対応 */
+:root {
+  --bg: #e8f4dd;
+  --panel: #ffffff;
+  --ink: #22331f;
+  --sub: #6b7f63;
+  --line: #c8ddb8;
+  --green: #3fa34d;
+  --green-deep: #2d7a3a;
+  --accent: #ffd447;
+  --danger: #c0392b;
+  --chip: #eef6e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101613;
+    --panel: #1a241c;
+    --ink: #dcefd2;
+    --sub: #8ba381;
+    --line: #2c3d2e;
+    --chip: #223126;
+  }
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 14px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.topbar { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }
+.topbar h1 { font-size: 20px; letter-spacing: 2px; }
+.topbar-right { display: flex; gap: 8px; align-items: center; }
+.streak { font-size: 13px; color: var(--sub); }
+.badge {
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  background: var(--accent); color: #4a3a00;
+  padding: 3px 8px; border-radius: 6px;
+}
+.error {
+  background: #fdeaea; color: var(--danger);
+  border: 1px solid #f0b6b0; border-radius: 10px;
+  padding: 10px 12px; font-size: 13px;
+}
+@media (prefers-color-scheme: dark) {
+  .error { background: #341c1a; border-color: #67312c; color: #f2a49c; }
+}
+
+.stage-card, .progress-card {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+.stage-card { text-align: center; }
+#stage {
+  width: min(62vw, 240px);
+  height: auto;
+  image-rendering: pixelated;
+  aspect-ratio: 1;
+}
+.mood-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.mood-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.say { margin-top: 8px; font-size: 13px; color: var(--sub); min-height: 1.2em; }
+
+.meter {
+  flex: 1; height: 12px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.meter.big { height: 16px; border-radius: 8px; }
+.meter-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--green-deep), var(--green));
+  transition: width .5s ease;
+}
+.progress-head {
+  display: flex; justify-content: space-between;
+  font-size: 14px; font-weight: 700; margin-bottom: 8px;
+}
+
+.tasks { display: flex; flex-direction: column; gap: 8px; }
+.task {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.task.done { opacity: .55; }
+.task-title { font-size: 14px; line-height: 1.4; }
+.task.done .task-title { text-decoration: line-through; }
+.task-meta { font-size: 11px; color: var(--sub); margin-top: 2px; }
+.task-actions { display: flex; gap: 6px; margin-top: 8px; }
+.status-btn {
+  flex: 1;
+  font-size: 12px; font-weight: 600;
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  background: var(--chip);
+  color: var(--sub);
+}
+.status-btn.active {
+  background: var(--green); border-color: var(--green-deep); color: #fff;
+}
+.status-btn:disabled { opacity: .6; }
+.tasks-empty {
+  text-align: center; color: var(--sub); font-size: 13px; padding: 18px 0;
+}
+
+.foot {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--sub);
+}
+.ghost-btn {
+  border: 1.5px solid var(--line); background: transparent; color: var(--sub);
+  border-radius: 8px; padding: 6px 14px; font-size: 12px;
+}
+
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+#stage.pop { animation: pop .5s ease; }

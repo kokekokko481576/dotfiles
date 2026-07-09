@@ -226,6 +226,32 @@ services:
       - butler  # APIキー設定後に有効化するため通常起動から除外
     depends_on:
       - n8n
+      - wani
+
+  # ================================================================
+  # Wani — ワニ博士タスク管理アプリ(自作、plan/13_wani-app.md)
+  # PWA(スマホ)配信 + タスク/気分API。タスクの正はGitHub Projects V2で、
+  # GITHUB_TOKEN未設定の間はモックデータで動く。
+  # スマホからは tailscale serve 経由: https://<MagicDNSのFQDN>:8443/
+  # ================================================================
+  wani:
+    container_name: wani
+    build: ./wani
+    ports:
+      # tailscale serveの中継先。tailnet外に晒さないようloopbackのみにバインド
+      - "127.0.0.1:8090:8090"
+    env_file:
+      # GitHub関連(GITHUB_TOKEN等)はtask-agentと同じファイルを共用し、設定箇所を1つにする。
+      # ファイル未作成(GitHub未設定)でも起動できるよう required: false → モックモードになる
+      - path: ./task-agent/.env
+        required: false
+    environment:
+      - TZ=Asia/Tokyo
+      - DATA_DIR=/app/data
+    volumes:
+      - /mnt/data/ai/wani:/app/data
+    restart: unless-stopped
+    mem_limit: 256m
 
   # ================================================================
   # Task Agent — GitHub Project連携のタスク管理エージェント兼思考ログ

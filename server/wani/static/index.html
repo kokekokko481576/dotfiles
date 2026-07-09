@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3fa34d">
+<title>ワニ博士</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <h1>ワニ博士</h1>
+    <div class="topbar-right">
+      <span id="streak" class="streak" hidden>🔥 <b>0</b>日連続</span>
+      <span id="mock-badge" class="badge" hidden>モック</span>
+    </div>
+  </header>
+
+  <div id="error-banner" class="error" hidden></div>
+
+  <section class="stage-card">
+    <canvas id="stage" width="32" height="32"></canvas>
+    <div class="mood-row">
+      <span id="mood-label" class="mood-label">…</span>
+      <div class="meter"><div id="mood-bar" class="meter-fill"></div></div>
+    </div>
+    <p id="wani-say" class="say"></p>
+  </section>
+
+  <section class="progress-card">
+    <div class="progress-head">
+      <span>今日の進捗</span>
+      <span id="progress-text">- / -</span>
+    </div>
+    <div class="meter big"><div id="progress-bar" class="meter-fill"></div></div>
+  </section>
+
+  <section id="task-list" class="tasks"></section>
+
+  <footer class="foot">
+    <span id="updated-at"></span>
+    <button id="refresh" class="ghost-btn" type="button">更新</button>
+  </footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

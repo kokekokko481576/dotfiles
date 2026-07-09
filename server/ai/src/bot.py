@@ -43,6 +43,9 @@ MAX_TOOL_ITERATIONS = 8
 # n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー、Google Calendar連携)。
 # 同じdocker composeネットワーク上のn8nサービスにコンテナ名で到達する（詳細: guide/06_n8n設定.md）。
 N8N_TODAY_SCHEDULE_URL = os.environ.get("N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+# ワニ博士タスク管理アプリ(plan/13_wani-app.md)。タスク・気分の状態はここに一元化されていて、
+# PWA(スマホ)とこのBotのどちらから進捗を更新しても同じ状態が動く。
+WANI_API_URL = os.environ.get("WANI_API_URL", "http://wani:8090")
 CONFIRM_TIMEOUT_SEC = 300
 
 # ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
@@ -63,7 +66,10 @@ AGENT_MODE_INSTRUCTION = (
     "主人様が日常使っているPCそのものです。「クラウド上のAI」と「主人様のPC」を別物として扱わないでください、"
     "同一のマシンです。あなたにはそのマシン上でシェルコマンドの実行・ファイルの読み書きを行う"
     "run_shell/read_file/write_file/list_dirツールに加え、今日の予定を調べるget_today_schedule、"
-    "Web検索のweb_search、指定URLの内容を取得するfetch_urlツールが与えられています。"
+    "Web検索のweb_search、指定URLの内容を取得するfetch_url、タスク管理(GitHub Project連携の"
+    "ワニ博士アプリ)のlist_tasks/update_task_statusツールが与えられています。"
+    "タスクや進捗の話題ではlist_tasksを呼び、「〜終わった」「〜やった」という報告があれば"
+    "該当タスクをupdate_task_statusでDoneにして、ワニ博士の気分を主人様に伝えてください。"
     "権限の有無や動作確認を聞かれたときは、説明だけで済ませず、実際にread_file/list_dir/run_shell等の"
     "軽い読み取り系ツールを呼び出して、その実行結果を根拠に答えてください。調査・診断・設定変更を"
     "頼まれた場合も同様に積極的にツールを使ってください。破壊的、または元に戻せない可能性がある操作は"
@@ -170,6 +176,72 @@ async def fetch_today_schedule() -> str:
     return "\n".join(lines)
 
 
+MOOD_LABEL = {"excellent": "エクセレント", "happy": "ごきげん", "normal": "ふつう", "tired": "ぐったり"}
+
+
+def _format_mood(mood: dict) -> str:
+    label = "おやすみ中" if mood.get("sleeping") else MOOD_LABEL.get(mood.get("level"), "?")
+    return (f"ワニ博士の気分: {label}({mood.get('mood')}/100) "
+            f"今日の完了{mood.get('today_done')}件 連続{mood.get('streak')}日")
+
+
+async def wani_list_tasks() -> str:
+    """ワニ博士アプリからタスク一覧+気分を取得して整形テキストで返す。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{WANI_API_URL}/api/state", timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                if resp.status != 200:
+                    return f"（タスク取得に失敗しました: HTTP {resp.status}）"
+                state = await resp.json()
+    except Exception as e:
+        log.error(f"wani list_tasks error: {e}")
+        return f"（タスク取得に失敗しました: {e}）"
+
+    lines = [_format_mood(state["mood"])]
+    if state.get("mock"):
+        lines.append("※GitHub未設定のためモックデータです")
+    p = state["progress"]
+    lines.append(f"進捗: {p['done']}/{p['total']}件完了 ({p['percent']}%)")
+    for t in state["tasks"]:
+        lines.append(f"#{t['number']} [{t.get('status') or 'Todo'}] {t['title']}")
+    if not state["tasks"]:
+        lines.append("(タスクなし)")
+    return "\n".join(lines)
+
+
+async def wani_update_status(number: int, status: str) -> str:
+    """タスク番号→item_id解決の上でStatusを更新する。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{WANI_API_URL}/api/state", timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                state = await resp.json()
+            task = next((t for t in state["tasks"] if t["number"] == number), None)
+            if task is None:
+                return f"（#{number} のタスクが見つかりません）"
+            async with session.post(
+                f"{WANI_API_URL}/api/tasks/{task['item_id']}/status",
+                json={"status": status},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    return f"（更新に失敗しました: {body.get('detail', resp.status)}）"
+    except Exception as e:
+        log.error(f"wani update_status error: {e}")
+        return f"（更新に失敗しました: {e}）"
+
+    t = body["task"]
+    lines = [f"#{t['number']}「{t['title']}」を {t['status']} にしました。",
+             _format_mood(body["mood"])]
+    if body.get("event") == "done":
+        lines.append("(ワニ博士は喜んでいます)")
+    return "\n".join(lines)
+
+
 async def run_agent_turn(channel, requester, messages: list) -> str:
     """ツール呼び出し込みでLLMと対話し、最終的なテキスト返答を返す。"""
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -217,6 +289,11 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                     result = {"ok": True, "output": await web_tools.web_search(args.get("query", ""))}
                 elif name == "fetch_url":
                     result = {"ok": True, "output": await web_tools.fetch_url(args.get("url", ""))}
+                elif name == "list_tasks":
+                    result = {"ok": True, "output": await wani_list_tasks()}
+                elif name == "update_task_status":
+                    result = {"ok": True, "output": await wani_update_status(
+                        int(args.get("number", 0)), args.get("status", ""))}
                 else:
                     result = await agent_tools.execute_tool(AGENT_SOCKET_PATH, name, args)
             else:
@@ -365,6 +442,7 @@ HEALTH_TARGETS = [
     ("Uptime Kuma","http://uptime-kuma:3001/"),
     ("Ollama",     "http://ollama:11434/"),
     ("Homepage",   "http://homepage:3000/"),
+    ("Wani",       "http://wani:8090/healthz"),
 ]
 
 async def _ping(session: aiohttp.ClientSession, url: str) -> tuple[bool, str]:

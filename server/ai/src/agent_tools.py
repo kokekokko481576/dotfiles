@@ -111,6 +111,36 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_tasks",
+            "description": (
+                "タスク一覧と今日の進捗・ワニ博士の気分を取得する(ワニ博士アプリのAPI経由、"
+                "タスクの正はGitHub Project)。タスク・進捗・予定の話題ではまずこれを呼ぶ。"
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_task_status",
+            "description": (
+                "タスクの進捗状態を変更する。numberはlist_tasksで確認できるタスク番号。"
+                "statusはTodo/In Progress/Doneのいずれか(完了・着手などの日本語も可)。"
+                "完了にするとワニ博士の気分が上がる。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "integer", "description": "タスク番号(#の数字)"},
+                    "status": {"type": "string", "description": "新しい状態(Todo/In Progress/Done)"},
+                },
+                "required": ["number", "status"],
+            },
+        },
+    },
 ]
 
 # 認証情報・秘密鍵など、エージェントに読み書きさせてはいけないパス(部分一致・大文字小文字無視)。
