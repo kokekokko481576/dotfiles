@@ -101,9 +101,9 @@ body {
 .task-title { font-size: 14px; line-height: 1.4; }
 .task.done .task-title { text-decoration: line-through; }
 .task-meta { font-size: 11px; color: var(--sub); margin-top: 2px; }
-.task-actions { display: flex; gap: 6px; margin-top: 8px; }
+.task-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .status-btn {
-  flex: 1;
+  flex: 1 1 28%;
   font-size: 12px; font-weight: 600;
   padding: 7px 0;
   border-radius: 8px;
@@ -118,6 +118,21 @@ body {
 .tasks-empty {
   text-align: center; color: var(--sub); font-size: 13px; padding: 18px 0;
 }
+
+.group {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 4px 12px 10px;
+}
+.group > summary {
+  cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--sub);
+  padding: 8px 0;
+  list-style-position: inside;
+}
+.group .tasks { margin-top: 6px; }
+.group .task { border-width: 1.5px; }
 
 .foot {
   display: flex; justify-content: space-between; align-items: center;

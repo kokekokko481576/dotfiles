@@ -38,9 +38,16 @@ class StatusUpdate(BaseModel):
     status: str
 
 
+# 進捗の分母から外すStatus。waitingは他人待ち、wish listは後回しBOX(ユーザー命名)で
+# どちらも「今日の頑張り」の対象ではないため、ワニ博士の進捗バーには含めない。
+EXCLUDED_FROM_PROGRESS = {"waiting", "wish list"}
+
+
 def _progress(tasks: list[dict]) -> dict:
-    done = sum(1 for t in tasks if (t.get("status") or "").casefold() == "done")
-    total = len(tasks)
+    scoped = [t for t in tasks
+              if (t.get("status") or "").casefold() not in EXCLUDED_FROM_PROGRESS]
+    done = sum(1 for t in scoped if (t.get("status") or "").casefold() == "done")
+    total = len(scoped)
     return {
         "done": done,
         "total": total,
@@ -96,8 +103,8 @@ def update_status(item_id: str, body: StatusUpdate):
         event = "done"
     elif old == "done" and new != "done":
         event = "undone"
-    elif new == "in progress" and old != "in progress":
-        event = "started"
+    elif new in ("in progress", "review") and old not in ("in progress", "review"):
+        event = "started"  # Reviewまで進めたのも「前進」として扱う
 
     now = datetime.now()
     state = store.load_state()

@@ -30,7 +30,8 @@ PROJECT_NUMBER = int(os.environ.get("GITHUB_PROJECT_NUMBER", "0") or "0")
 STATUS_FIELD_NAME = os.environ.get("GITHUB_STATUS_FIELD_NAME", "Status")
 
 MOCK_MODE = not (GITHUB_TOKEN and PROJECT_OWNER and PROJECT_NUMBER)
-MOCK_STATUSES = ["Todo", "In Progress", "Done"]
+# ユーザーの実Projectと同じ並び(guide/13参照)。実モードではGitHubから取得した選択肢が使われる
+MOCK_STATUSES = ["waiting", "Todo", "In Progress", "Review", "Done", "wish list"]
 
 _ITEMS_QUERY = """
 query($login: String!, $number: Int!, $after: String) {
@@ -59,6 +60,9 @@ query($login: String!, $number: Int!, $after: String) {
               number title url state
               labels(first: 20) { nodes { name } }
               repository { nameWithOwner }
+            }
+            ... on DraftIssue {
+              draftTitle: title
             }
           }
         }
@@ -170,10 +174,17 @@ class TaskSource:
                 return opt
         aliases = {"todo": "Todo", "doing": "In Progress", "in progress": "In Progress",
                    "inprogress": "In Progress", "done": "Done", "完了": "Done",
-                   "着手": "In Progress", "進行中": "In Progress", "未着手": "Todo"}
+                   "着手": "In Progress", "進行中": "In Progress", "未着手": "Todo",
+                   "レビュー": "Review", "確認": "Review",
+                   "待ち": "waiting", "待機": "waiting", "保留": "waiting",
+                   "後回し": "wish list", "あとで": "wish list", "いつか": "wish list",
+                   "wishlist": "wish list", "wish": "wish list"}
         alias = aliases.get(normalized)
-        if alias and alias in options:
-            return alias
+        if alias:
+            # エイリアス先も実際の選択肢名と大文字小文字を無視して照合する
+            for opt in options:
+                if opt.strip().casefold() == alias.casefold():
+                    return opt
         return None
 
     def _graphql(self, query: str, variables: dict) -> dict:
@@ -207,8 +218,10 @@ class TaskSource:
                     self._status_options = {o["name"]: o["id"] for o in field["options"]}
 
             for node in project["items"]["nodes"]:
-                content = node.get("content")
-                if not content or content.get("state") != "OPEN":
+                content = node.get("content") or {}
+                is_draft = "draftTitle" in content
+                # issueはOPENのみ。Draft item(リポジトリに属さないメモ的タスク)はそのまま扱う
+                if not is_draft and content.get("state") != "OPEN":
                     continue
                 status_name = None
                 for fv in node["fieldValues"]["nodes"]:
@@ -216,12 +229,13 @@ class TaskSource:
                         status_name = fv["name"]
                 items.append({
                     "item_id": node["id"],
-                    "number": content["number"],
-                    "title": content["title"],
-                    "url": content["url"],
-                    "repo": content["repository"]["nameWithOwner"],
-                    "labels": [l["name"] for l in content["labels"]["nodes"]],
+                    "number": content.get("number"),  # Draftはnull
+                    "title": content.get("draftTitle") or content.get("title") or "(無題)",
+                    "url": content.get("url", ""),
+                    "repo": (content.get("repository") or {}).get("nameWithOwner", ""),
+                    "labels": [l["name"] for l in (content.get("labels") or {}).get("nodes", [])],
                     "status": status_name or "Todo",
+                    "draft": is_draft,
                 })
 
             page_info = project["items"]["pageInfo"]

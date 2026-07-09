@@ -41,6 +41,16 @@
 
   <section id="task-list" class="tasks"></section>
 
+  <details id="waiting-box" class="group" hidden>
+    <summary>待ち（他人待ち・保留） <span id="waiting-count"></span></summary>
+    <div id="waiting-list" class="tasks"></div>
+  </details>
+
+  <details id="wish-box" class="group" hidden>
+    <summary>後回しBOX（wish list） <span id="wish-count"></span></summary>
+    <div id="wish-list" class="tasks"></div>
+  </details>
+
   <footer class="foot">
     <span id="updated-at"></span>
     <button id="refresh" class="ghost-btn" type="button">更新</button>

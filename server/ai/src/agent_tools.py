@@ -127,17 +127,19 @@ TOOLS = [
         "function": {
             "name": "update_task_status",
             "description": (
-                "タスクの進捗状態を変更する。numberはlist_tasksで確認できるタスク番号。"
-                "statusはTodo/In Progress/Doneのいずれか(完了・着手などの日本語も可)。"
+                "タスクの進捗状態を変更する。番号付きタスクはnumber、番号のないメモ(Draft)は"
+                "titleで指定する。statusは waiting/Todo/In Progress/Review/Done/wish list "
+                "のいずれか(完了・着手・レビュー・待ち・後回し などの日本語も可)。"
                 "完了にするとワニ博士の気分が上がる。"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "number": {"type": "integer", "description": "タスク番号(#の数字)"},
-                    "status": {"type": "string", "description": "新しい状態(Todo/In Progress/Done)"},
+                    "number": {"type": "integer", "description": "タスク番号(#の数字)。メモの場合は省略"},
+                    "title": {"type": "string", "description": "タスク名(番号がない場合。部分一致可)"},
+                    "status": {"type": "string", "description": "新しい状態"},
                 },
-                "required": ["number", "status"],
+                "required": ["status"],
             },
         },
     },

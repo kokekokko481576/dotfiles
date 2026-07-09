@@ -203,25 +203,37 @@ async def wani_list_tasks() -> str:
     if state.get("mock"):
         lines.append("※GitHub未設定のためモックデータです")
     p = state["progress"]
-    lines.append(f"進捗: {p['done']}/{p['total']}件完了 ({p['percent']}%)")
+    lines.append(f"進捗: {p['done']}/{p['total']}件完了 ({p['percent']}%) "
+                 "※waiting/wish listは進捗の分母に含まない")
     for t in state["tasks"]:
-        lines.append(f"#{t['number']} [{t.get('status') or 'Todo'}] {t['title']}")
+        ref = f"#{t['number']}" if t.get("number") else "(メモ)"
+        lines.append(f"{ref} [{t.get('status') or 'Todo'}] {t['title']}")
     if not state["tasks"]:
         lines.append("(タスクなし)")
     return "\n".join(lines)
 
 
-async def wani_update_status(number: int, status: str) -> str:
-    """タスク番号→item_id解決の上でStatusを更新する。"""
+async def wani_update_status(status: str, number: int | None = None, title: str | None = None) -> str:
+    """タスク番号またはタイトル→item_id解決の上でStatusを更新する。"""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{WANI_API_URL}/api/state", timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
                 state = await resp.json()
-            task = next((t for t in state["tasks"] if t["number"] == number), None)
+            task = None
+            if number:
+                task = next((t for t in state["tasks"] if t["number"] == number), None)
+            elif title:
+                # タイトル部分一致(一意に決まるときだけ)。Draft item(番号なし)用
+                hits = [t for t in state["tasks"] if title.casefold() in t["title"].casefold()]
+                if len(hits) > 1:
+                    names = " / ".join(t["title"] for t in hits[:5])
+                    return f"（「{title}」に複数該当します: {names}。絞り込んでください）"
+                task = hits[0] if hits else None
             if task is None:
-                return f"（#{number} のタスクが見つかりません）"
+                ref = f"#{number}" if number else f"「{title}」"
+                return f"（{ref} のタスクが見つかりません）"
             async with session.post(
                 f"{WANI_API_URL}/api/tasks/{task['item_id']}/status",
                 json={"status": status},
@@ -235,7 +247,8 @@ async def wani_update_status(number: int, status: str) -> str:
         return f"（更新に失敗しました: {e}）"
 
     t = body["task"]
-    lines = [f"#{t['number']}「{t['title']}」を {t['status']} にしました。",
+    ref = f"#{t['number']} " if t.get("number") else ""
+    lines = [f"{ref}「{t['title']}」を {t['status']} にしました。",
              _format_mood(body["mood"])]
     if body.get("event") == "done":
         lines.append("(ワニ博士は喜んでいます)")
@@ -293,7 +306,9 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                     result = {"ok": True, "output": await wani_list_tasks()}
                 elif name == "update_task_status":
                     result = {"ok": True, "output": await wani_update_status(
-                        int(args.get("number", 0)), args.get("status", ""))}
+                        args.get("status", ""),
+                        number=int(args["number"]) if args.get("number") else None,
+                        title=args.get("title"))}
                 else:
                     result = await agent_tools.execute_tool(AGENT_SOCKET_PATH, name, args)
             else:
@@ -387,6 +402,28 @@ async def on_message(message: discord.Message):
     await bot.process_commands(message)
 
 # ---- 朝のデイリーブリーフィング（毎日8時）----
+async def suggest_today_tasks(schedule: str, tasks_text: str) -> str:
+    """カレンダーの予定とタスク一覧をGeminiに渡し、今日のおすすめタスクを提案させる。"""
+    prompt = (
+        f"今日の予定:\n{schedule}\n\n現在のタスク:\n{tasks_text}\n\n"
+        "上記を踏まえ、朝のブリーフィングとして「今日のおすすめタスク」を1〜3件提案してください。"
+        "予定の空き具合との相性を理由に一言添えること。waiting(他人待ち)とwish list(後回しBOX)は"
+        "原則すすめない(締切が近そうな場合のみ言及可)。全体で200字以内。"
+    )
+    try:
+        response = await llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        log.error(f"task suggestion error: {e}")
+        return ""
+
+
 @tasks.loop(hours=24)
 async def daily_briefing():
     if not CHANNEL_NOTIFY:
@@ -396,12 +433,16 @@ async def daily_briefing():
         return
     now = datetime.now()
     schedule = await fetch_today_schedule()
+    tasks_text = await wani_list_tasks()
+    suggestion = await suggest_today_tasks(schedule, tasks_text)
     msg = (
-        f"**おはようございます。{now.strftime('%Y年%m月%d日')}です。**\n"
-        "・サーバー稼働中\n\n"
-        f"**今日の予定**\n{schedule}"
+        f"**おはようございます。{now.strftime('%Y年%m月%d日')}です。**\n\n"
+        f"**今日の予定**\n{schedule}\n\n"
+        f"**タスク**\n{tasks_text}"
     )
-    await ch.send(msg)
+    if suggestion:
+        msg += f"\n\n**今日のおすすめ**\n{suggestion}"
+    await ch.send(msg[:2000])
 
 @daily_briefing.before_loop
 async def before_briefing():

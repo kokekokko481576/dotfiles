@@ -27,13 +27,17 @@ _DEFAULT_STATE = {
 # フロント・butler-botからはモックか本物かを意識せずに扱える。
 _DEFAULT_MOCK_TASKS = [
     {"item_id": "mock-1", "number": 1, "title": "ワニ博士アプリのUIを確認する",
-     "url": "", "repo": "mock/personal-tasks", "labels": ["dev"], "status": "Todo"},
+     "url": "", "repo": "mock/personal-tasks", "labels": ["dev"], "status": "Todo", "draft": False},
     {"item_id": "mock-2", "number": 2, "title": "GitHub PATを設定して本物のProjectに切り替える",
-     "url": "", "repo": "mock/personal-tasks", "labels": ["setup"], "status": "Todo"},
+     "url": "", "repo": "mock/personal-tasks", "labels": ["setup"], "status": "Todo", "draft": False},
     {"item_id": "mock-3", "number": 3, "title": "研究ノートを1ページ書く",
-     "url": "", "repo": "mock/personal-tasks", "labels": ["research"], "status": "In Progress"},
+     "url": "", "repo": "mock/personal-tasks", "labels": ["research"], "status": "In Progress", "draft": False},
     {"item_id": "mock-4", "number": 4, "title": "Discordから進捗更新を試す",
-     "url": "", "repo": "mock/personal-tasks", "labels": ["dev"], "status": "Todo"},
+     "url": "", "repo": "mock/personal-tasks", "labels": ["dev"], "status": "Todo", "draft": False},
+    {"item_id": "mock-5", "number": 5, "title": "共同研究の返信待ち",
+     "url": "", "repo": "mock/personal-tasks", "labels": [], "status": "waiting", "draft": False},
+    {"item_id": "mock-6", "number": None, "title": "いつかやる: 3Dプリンタのファーム更新",
+     "url": "", "repo": "", "labels": [], "status": "wish list", "draft": True},
 ]
 
 

@@ -1,6 +1,12 @@
 """
 ドット絵ワニ博士のスプライト生成スクリプト(単一ソース)。
 
+公式の見た目(大阪大学マスコット)に寄せた第2版:
+- 角帽は無し(初版はClaudeの創作だった。公式はかぶっていない)
+- 黄色い目+大きな黒目が頭の上のバンプに乗る
+- クリーム色の腹に黒い横線(ワニの腹板)
+- 白い牙・白い爪、大きなピンクの口
+
 ここのASCIIグリッドが原本。実行すると
 - static/sprites.js   (PWAがcanvas描画に使うデータ)
 - static/icon-192.png / icon-512.png (PWAマニフェスト用アイコン)
@@ -17,60 +23,58 @@ from pathlib import Path
 
 # ---- パレット ----
 PALETTE = {
-    ".": None,           # 透明
-    "K": (20, 61, 32),    # 輪郭(濃緑)
-    "G": (63, 163, 77),   # 体(緑)
-    "D": (45, 122, 58),   # 体の影
-    "L": (205, 237, 181), # 腹・口まわり(薄緑)
-    "B": (38, 38, 46),    # 角帽(黒)
-    "S": (72, 72, 88),    # 角帽ハイライト
-    "Y": (255, 212, 71),  # 房(タッセル)
-    "W": (255, 255, 255), # 目・歯
-    "P": (28, 28, 28),    # 瞳
-    "R": (224, 82, 106),  # 口の中
-    "C": (255, 158, 158), # ほっぺ
-    "Z": (122, 162, 247), # Zzz
-    "*": (255, 220, 120), # キラキラ
+    ".": None,            # 透明
+    "K": (16, 60, 34),     # 輪郭(濃緑)
+    "G": (53, 158, 88),    # 体(緑)
+    "D": (38, 120, 64),    # 体の影
+    "L": (247, 244, 230),  # 腹(クリーム)
+    "Y": (255, 210, 45),   # 目(黄)
+    "P": (24, 24, 24),     # 瞳
+    "W": (255, 255, 255),  # 牙・爪
+    "R": (232, 88, 136),   # 口の中(ピンク)
+    "C": (255, 150, 160),  # ほっぺ
+    "Z": (122, 162, 247),  # Zzz・汗
+    "*": (255, 220, 120),  # キラキラ
 }
 
 W = 32
 H = 32
 
-# ---- ベース(ふつう・フレーム1) ----
+# ---- ベース(ふつう: 閉じた口+牙、目ぱっちり) ----
 # 32x32。行は上から。grid()が右側を透明で埋めるので末尾のドットは省略可。
 BASE = [
     "",
-    "...............BB",
-    ".....BBBBBBBBBBBBBBBBBBBBBB",
-    "...BBBBBBBBBBBBBBBBBBBBBBBBBB",
-    "..........BBBBBBBBBBBB.....Y",
-    "..........BBBBBBBBBBBB.....Y",
-    "........KGGGGGGGGGGGGK....YY",
-    ".......KGGGGGGGGGGGGGGK",
-    "......KGGWWWWGGGGWWWWGGK",
-    "......KGWWWWWWGGWWWWWWGK",
-    "......KGWWPPWWGGWWPPWWGK",
-    "......KGWWPPWWGGWWPPWWGK",
-    "......KGGWWWWGGGGWWWWGGK",
-    "......KGGGGGGGGGGGGGGGGK",
-    ".....KGGLLDDLLLLLLDDLLGGK",
-    ".....KGLLLLLLLLLLLLLLLLGK",
-    ".....KGLKKKKKKKKKKKKKKLGK",
-    ".....KGLLWWLLLLLLLLWWLLGK",
-    ".....KGGLLLLLLLLLLLLLLGGK",
-    "......KGGGGGGGGGGGGGGGGK",
-    ".......KGGGGGGGGGGGGGGK",
-    "......KGGGGLLLLLLLLGGGGK",
-    ".....KGGGGGLLLLLLLLGGGGGK",
-    ".....KGGKGGLLLLLLLLGGKGGK",
-    ".....KGGKGGLLLLLLLLGGKGGK",
-    "......KK.KGGLLLLLLGGK.KK",
-    ".........KGGGGGGGGGGK",
-    ".........KGGGGGGGGGGK",
-    ".........KGGK....KGGK",
-    ".........KGGK....KGGK",
-    "........KKGGKK..KKGGKK",
-    "........KKKKKK..KKKKKK",
+    "........KKK..........KKK",
+    ".......KYYYK........KYYYK",
+    "......KYYYYYK......KYYYYYK",
+    "......KYYPPYK......KYYPPYK",
+    "......KYYPPYK......KYYPPYK",
+    "......KYYYYYK......KYYYYYK",
+    ".....KGGGGGGGGGGGGGGGGGGGGK",
+    "...KGGGGGGGGGKKGGKKGGGGGGGGK",
+    "...KGGGGGGGGGGGGGGGGGGGGGGGGK",
+    "...KGKKKKKKKKKKKKKKKKKKKKKKGK",
+    "...KGGGWWGGGWWGGGGWWGGGWWGGGK",
+    "...KGGGGGGGGGGGGGGGGGGGGGGGGK",
+    "....KGGGGGGGGGGGGGGGGGGGGGGK",
+    "....KGGGGGGGGGGGGGGGGGGGGGGK",
+    ".....KGGGGGGGGGGGGGGGGGGGGK",
+    ".....KGGGGLLLLLLLLLLLLGGGGK",
+    ".KGGGGGGGGLLLLLLLLLLLLGGGGGGGGK",
+    ".KGGKGGGGGLLLLLLLLLLLLGGGGGKGGK",
+    ".KGGKGGGGGLKKKKKKKKKKLGGGGGKGGK",
+    ".KWWKGGGGGLLLLLLLLLLLLGGGGGKWWK",
+    "..KK.KGGGGLLLLLLLLLLLLGGGGK.KK",
+    ".....KGGGGLKKKKKKKKKKLGGGGK",
+    ".....KGGGGLLLLLLLLLLLLGGGGK",
+    ".....KGGGGLLLLLLLLLLLLGGGGK",
+    ".....KGGGGLKKKKKKKKKKLGGGGK",
+    "......KGGGGLLLLLLLLLLGGGGK",
+    ".......KGGGGGGGGGGGGGGGGK",
+    "........KGGK........KGGK",
+    "........KGGK........KGGK",
+    "......KKGGWWK......KWWGGKK",
+    "......KKKKKKK......KKKKKKK",
 ]
 
 
@@ -99,6 +103,20 @@ def replace_row(g, y, x0, x1, ch):
         g[y][x] = ch
 
 
+def _close_eyes(g):
+    """両目を閉じる(黄色をまぶたの緑に、下端にまつ毛線)。"""
+    put(g, 2, 8, "GGG")
+    put(g, 2, 21, "GGG")
+    for y in (3, 4):
+        put(g, y, 7, "GGGGG")
+        put(g, y, 20, "GGGGG")
+    put(g, 5, 7, "KKKKK")
+    put(g, 5, 20, "KKKKK")
+    put(g, 6, 7, "GGGGG")
+    put(g, 6, 20, "GGGGG")
+    return g
+
+
 # ---- バリアント生成 ----
 
 def frame_normal_1():
@@ -106,33 +124,30 @@ def frame_normal_1():
 
 
 def frame_normal_2():
-    """呼吸: 全体を1px下げる(帽子含む)。"""
+    """呼吸: 全体を1px下げる。"""
     g = grid(BASE)
     return [list("." * W)] + g[:-1]
 
 
 def frame_blink():
-    g = grid(BASE)
-    # 目を閉じる(白目を体色に、瞳をまぶた線に)
-    for y in (8, 9, 10, 11, 12):
-        put(g, y, 8, "GGGGGG")
-        put(g, y, 16, "GGGGGG")
-    put(g, 11, 9, "KKKK")
-    put(g, 11, 17, "KKKK")
+    return _close_eyes(grid(BASE))
+
+
+def _open_mouth(g):
+    """口を大きく開けたピンクの笑顔(上あごに白い歯)に差し替える。"""
+    put(g, 10, 4, "GKKKKKKKKKKKKKKKKKKKKKKG")
+    put(g, 11, 4, "GKWWRRRRWWRRRRWWRRRRWWKG")
+    put(g, 12, 4, "GGKRRRRRRRRRRRRRRRRRRKGG")
+    put(g, 13, 5, "GGKKKKKKKKKKKKKKKKKKGG")
     return g
 
 
 def frame_happy_1():
     g = grid(BASE)
-    # 口: 開いた笑顔(中は赤、両端に白い牙)
-    replace_row(g, 16, 8, 21, "L")
-    replace_row(g, 17, 9, 20, "L")
-    put(g, 16, 9, "KWWKRRRRRRKWWK")
-    put(g, 17, 10, "KRRRRRRRRRRK")
-    put(g, 18, 11, "KKKKKKKKKK")
+    _open_mouth(g)
     # ほっぺ
-    put(g, 13, 8, "CC")
-    put(g, 13, 20, "CC")
+    put(g, 9, 4, "CC")
+    put(g, 9, 26, "CC")
     return g
 
 
@@ -143,91 +158,92 @@ def frame_happy_2():
 
 def frame_excellent_1():
     g = frame_happy_1()
-    # 側面の腕を消して(体の輪郭に戻して)バンザイの腕を描く
-    put(g, 23, 5, "KGGGG")
-    put(g, 23, 20, "GGGGK")
-    put(g, 24, 5, "KGGGG")
-    put(g, 24, 20, "GGGGK")
-    put(g, 25, 6, "KGG")
-    put(g, 25, 20, "GKK")
-    # 頭の横に上げた腕(こぶし付き)
-    put(g, 15, 2, "KK")
-    put(g, 16, 1, "KGGK")
-    put(g, 17, 1, "KGGK")
-    put(g, 18, 2, "KGK")
-    put(g, 19, 3, "KGK")
-    put(g, 20, 4, "KGK")
-    put(g, 15, 28, "KK")
-    put(g, 16, 27, "KGGK")
-    put(g, 17, 27, "KGGK")
-    put(g, 18, 27, "KGK")
-    put(g, 19, 26, "KGK")
-    put(g, 20, 25, "KGK")
+    # 側面の腕(r17-21の外側)を消して体の輪郭を閉じる
+    for y in (17, 18, 19, 20):
+        put(g, y, 1, "....")
+        put(g, y, 5, "K")
+        put(g, y, 26, "K")
+        put(g, y, 27, "....")
+    put(g, 21, 2, "...")
+    put(g, 21, 27, "...")
+    # バンザイの腕(頭の横、こぶし=白爪)
+    put(g, 11, 0, "KWWK")
+    put(g, 12, 0, "KGGK")
+    put(g, 13, 0, "KGGK")
+    put(g, 14, 1, "KGGK")
+    put(g, 15, 2, "KGGK")
+    put(g, 16, 3, "KGK")
+    put(g, 11, 28, "KWWK")
+    put(g, 12, 28, "KGGK")
+    put(g, 13, 28, "KGGK")
+    put(g, 14, 27, "KGGK")
+    put(g, 15, 26, "KGGK")
+    put(g, 16, 26, "KGK")
     # キラキラ
-    put(g, 1, 3, "*")
-    put(g, 5, 30, "*")
-    put(g, 11, 2, "*")
-    put(g, 9, 29, "*")
+    put(g, 1, 2, "*")
+    put(g, 4, 29, "*")
+    put(g, 8, 1, "*")
+    put(g, 6, 30, "*")
     return g
 
 
 def frame_excellent_2():
     g = frame_excellent_1()
-    # キラキラの位置を変える
-    put(g, 1, 3, ".")
-    put(g, 5, 30, ".")
-    put(g, 11, 2, ".")
-    put(g, 9, 29, ".")
-    put(g, 3, 1, "*")
-    put(g, 8, 31, "*")
-    put(g, 13, 1, "*")
-    put(g, 2, 29, "*")
+    put(g, 1, 2, ".")
+    put(g, 4, 29, ".")
+    put(g, 8, 1, ".")
+    put(g, 6, 30, ".")
+    put(g, 2, 4, "*")
+    put(g, 3, 27, "*")
+    put(g, 9, 0, "*")
+    put(g, 7, 31, "*")
     return g
 
 
 def frame_tired_1():
     g = grid(BASE)
-    # 半目(白目の上半分をまぶたに)
-    for y in (8, 9):
-        put(g, y, 8, "GGGGGG")
-        put(g, y, 16, "GGGGGG")
-    put(g, 10, 9, "KKKK")
-    put(g, 10, 17, "KKKK")
-    # 口をへの字(∩)に、牙は消す
-    replace_row(g, 16, 8, 21, "L")
-    replace_row(g, 17, 9, 20, "L")
-    put(g, 15, 11, "K")
-    put(g, 15, 18, "K")
-    put(g, 16, 12, "KKKKKK")
+    # 半目(上半分をまぶたに、瞳は下寄りのまま)
+    for y in (2, 3):
+        put(g, y, 8, "GGG")
+        put(g, y, 21, "GGG")
+    put(g, 3, 7, "KKKKK".replace("K", "K"))
+    put(g, 3, 7, "GKKKG")
+    put(g, 3, 20, "GKKKG")
+    # 口を短いへの字に(牙は消す)
+    replace_row(g, 10, 5, 26, "G")
+    put(g, 11, 4, "GGGGGGGGGGGGGGGGGGGGGGGG")
+    put(g, 10, 11, "KKKKKKKKKK")
+    put(g, 11, 10, "K")
+    put(g, 11, 21, "K")
     # 汗(左こめかみ)
-    put(g, 8, 3, "Z")
-    put(g, 10, 2, "Z")
+    put(g, 6, 2, "Z")
+    put(g, 8, 1, "Z")
     return g
 
 
 def frame_tired_2():
     g = frame_tired_1()
-    put(g, 8, 3, ".")
-    put(g, 10, 2, ".")
-    put(g, 9, 3, "Z")
-    put(g, 11, 2, "Z")
+    put(g, 6, 2, ".")
+    put(g, 8, 1, ".")
+    put(g, 7, 2, "Z")
+    put(g, 9, 1, "Z")
     return g
 
 
 def frame_sleep_1():
-    g = frame_blink()
-    # Zzz(左上、帽子と重ならない位置)
-    put(g, 1, 4, "Z")
-    put(g, 3, 2, "ZZ")
-    put(g, 6, 1, "Z")
+    g = _close_eyes(grid(BASE))
+    # Zzz(左上)
+    put(g, 0, 4, "Z")
+    put(g, 2, 2, "ZZ")
+    put(g, 5, 1, "Z")
     return g
 
 
 def frame_sleep_2():
-    g = frame_blink()
-    put(g, 0, 3, "ZZ")
-    put(g, 2, 1, "Z")
-    put(g, 5, 0, "ZZ")
+    g = _close_eyes(grid(BASE))
+    put(g, 0, 2, "ZZ")
+    put(g, 3, 1, "Z")
+    put(g, 5, 3, "ZZ")
     return g
 
 
@@ -294,8 +310,8 @@ def main():
 
     # アイコン: happyフレームを背景色付きで
     icon_px = render(to_rows(frame_happy_1()))
-    write_png(static_dir / "icon-192.png", icon_px, scale=6, bg=(240, 249, 235))
-    write_png(static_dir / "icon-512.png", icon_px, scale=16, bg=(240, 249, 235))
+    write_png(static_dir / "icon-192.png", icon_px, scale=6, bg=(232, 244, 221))
+    write_png(static_dir / "icon-512.png", icon_px, scale=16, bg=(232, 244, 221))
     print("wrote icons")
 
     if "--preview" in sys.argv:

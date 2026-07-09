@@ -75,48 +75,76 @@ function render() {
   drawFrame();
 }
 
+const STATUS_JA = {
+  "waiting": "待ち", "todo": "未着手", "in progress": "進行中",
+  "review": "レビュー", "done": "完了", "wish list": "後回し",
+};
+const statusJa = (s) => STATUS_JA[(s || "").toLowerCase()] || s;
+const statusOf = (t) => (t.status || "").toLowerCase();
+
+function taskCard(t) {
+  const card = document.createElement("div");
+  card.className = "task" + (statusOf(t) === "done" ? " done" : "");
+
+  const title = document.createElement("div");
+  title.className = "task-title";
+  title.textContent = (t.number ? `#${t.number} ` : "") + t.title;
+  card.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "task-meta";
+  meta.textContent =
+    [t.draft ? "メモ(Draft)" : t.repo, ...(t.labels || [])].filter(Boolean).join(" · ");
+  card.appendChild(meta);
+
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+  for (const s of state.statuses) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "status-btn" + (s === t.status ? " active" : "");
+    btn.textContent = statusJa(s);
+    btn.onclick = () => updateStatus(t, s, btn);
+    actions.appendChild(btn);
+  }
+  card.appendChild(actions);
+  return card;
+}
+
 function renderTasks() {
   const list = $("task-list");
   list.replaceChildren();
-  if (!state.tasks.length) {
+
+  const active = [], waiting = [], wish = [];
+  for (const t of state.tasks) {
+    const s = statusOf(t);
+    if (s === "waiting") waiting.push(t);
+    else if (s === "wish list") wish.push(t);
+    else active.push(t);
+  }
+
+  if (!active.length) {
     const div = document.createElement("div");
     div.className = "tasks-empty";
-    div.textContent = state.error ? "" : "タスクがありません。GitHub Projectにissueを追加してください。";
+    div.textContent = state.error ? "" : "アクティブなタスクがありません。GitHub Projectに追加してください。";
     list.appendChild(div);
-    return;
+  } else {
+    // Done を下に、それ以外は番号順(Draftは末尾)
+    active.sort((a, b) =>
+      (statusOf(a) === "done" ? 1 : 0) - (statusOf(b) === "done" ? 1 : 0)
+      || (a.number ?? 1e9) - (b.number ?? 1e9));
+    for (const t of active) list.appendChild(taskCard(t));
   }
-  // Done を下に、それ以外は番号順
-  const tasks = [...state.tasks].sort((a, b) => {
-    const ad = a.status?.toLowerCase() === "done" ? 1 : 0;
-    const bd = b.status?.toLowerCase() === "done" ? 1 : 0;
-    return ad - bd || a.number - b.number;
-  });
-  for (const t of tasks) {
-    const card = document.createElement("div");
-    card.className = "task" + (t.status?.toLowerCase() === "done" ? " done" : "");
 
-    const title = document.createElement("div");
-    title.className = "task-title";
-    title.textContent = `#${t.number} ${t.title}`;
-    card.appendChild(title);
-
-    const meta = document.createElement("div");
-    meta.className = "task-meta";
-    meta.textContent = [t.repo, ...(t.labels || [])].filter(Boolean).join(" · ");
-    card.appendChild(meta);
-
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
-    for (const s of state.statuses) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "status-btn" + (s === t.status ? " active" : "");
-      btn.textContent = { "Todo": "未着手", "In Progress": "進行中", "Done": "完了" }[s] || s;
-      btn.onclick = () => updateStatus(t, s, btn);
-      actions.appendChild(btn);
-    }
-    card.appendChild(actions);
-    list.appendChild(card);
+  for (const [tasks, boxId, listId, countId] of [
+    [waiting, "waiting-box", "waiting-list", "waiting-count"],
+    [wish, "wish-box", "wish-list", "wish-count"],
+  ]) {
+    $(boxId).hidden = !tasks.length;
+    $(countId).textContent = tasks.length ? `${tasks.length}件` : "";
+    const el = $(listId);
+    el.replaceChildren();
+    for (const t of tasks) el.appendChild(taskCard(t));
   }
 }
 
