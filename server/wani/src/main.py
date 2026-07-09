@@ -61,17 +61,20 @@ def _snapshot() -> dict:
     store.save_state(state)
     try:
         tasks = source.list_tasks()
+        statuses = source.status_names()
         error = None
     except Exception as e:
         log.exception("タスク取得に失敗")
-        tasks, error = [], str(e)
+        # GitHub側の失敗(権限不足・ネットワーク等)でもアプリ自体は動かし、
+        # エラーバナーで理由を見せる
+        tasks, statuses, error = [], github_tasks.MOCK_STATUSES, str(e)
     return {
         "mock": source.mock,
         "error": error,
         "mood": mood.summary(state, now),
         "progress": _progress(tasks),
         "tasks": tasks,
-        "statuses": github_tasks.MOCK_STATUSES if source.mock else source.status_names(),
+        "statuses": statuses,
         "now": now.isoformat(),
     }
 
