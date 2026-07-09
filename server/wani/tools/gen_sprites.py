@@ -35,6 +35,14 @@ PALETTE = {
     "C": (255, 150, 160),  # ほっぺ
     "Z": (122, 162, 247),  # Zzz・汗
     "*": (255, 220, 120),  # キラキラ
+    # ---- 敵・小物用(小文字) ----
+    "m": (156, 96, 208),   # スライム(紫)
+    "n": (82, 92, 150),    # コウモリ(紺)
+    "e": (208, 70, 70),    # キノコの傘(赤)
+    "s": (216, 218, 232),  # おばけ(淡)
+    "g": (148, 148, 158),  # ゴーレム(灰)
+    "o": (205, 124, 74),   # ツボ(テラコッタ)
+    "d": (152, 84, 46),    # ツボの影
 }
 
 W = 32
@@ -78,13 +86,14 @@ BASE = [
 ]
 
 
-def grid(rows):
-    # 行長のタイプミスを許容: 32桁に満たなければ透明で右詰め、超えたらエラー
+def grid(rows, w=None):
+    # 行長のタイプミスを許容: 規定桁に満たなければ透明で右詰め、超えたらエラー
+    w = w or W
     fixed = []
     for i, r in enumerate(rows):
-        if len(r) > W:
-            raise ValueError(f"row {i} is {len(r)} chars (max {W}): {r}")
-        fixed.append(list(r.ljust(W, ".")))
+        if len(r) > w:
+            raise ValueError(f"row {i} is {len(r)} chars (max {w}): {r}")
+        fixed.append(list(r.ljust(w, ".")))
     return fixed
 
 
@@ -255,6 +264,169 @@ SPRITES = {
     "sleeping": [frame_sleep_1, frame_sleep_2],
 }
 
+# ================================================================
+# 敵モンスター・小物(アドベンチャーモード用)
+# 各オブジェクトは {"w": 幅, "frames": [ASCIIグリッド, ...]}
+# ================================================================
+
+def _shift_down(rows, w):
+    return ["." * w] + rows[:-1]
+
+
+SLIME = [
+    "",
+    ".....KKKKKK",
+    "....KmmmmmmK",
+    "...KmmmmmmmmK",
+    "..KmmmmmmmmmmK",
+    ".KmWWmmmmmmWWmK",
+    ".KmWPWmmmmWPWmK",
+    ".KmWPWmmmmWPWmK",
+    ".KmWWmmmmmmWWmK",
+    "KmmmmmKKKKmmmmmK",
+    "KmmmmmmmmmmmmmmK",
+    "KmmmmmmmmmmmmmmK",
+    ".KmmmmmmmmmmmmK",
+    "..KKKKKKKKKKKK",
+]
+
+BAT_1 = [
+    "",
+    ".KK..........KK",
+    ".KnnK......KnnK",
+    "..KnnnKKKKnnnK",
+    "..KnnnnnnnnnnK",
+    ".KnnWWnnnnWWnnK",
+    ".KnnWPnnnnWPnnK",
+    ".KnnnnnnnnnnnnK",
+    "..KnnKnnnnKnnK",
+    "...KnWKnnKWnK",
+    "....KKKKKKKK",
+]
+
+BAT_2 = [
+    "",
+    "",
+    "",
+    "...KKKKKKKKKK",
+    "..KnnnnnnnnnnK",
+    ".KnnWWnnnnWWnnK",
+    "KKnnWPnnnnWPnnKK",
+    "KnnKnnnnnnnnKnnK",
+    "KnnKnKnnnnKnKnnK",
+    ".KKKnWKnnKWnKKK",
+    "....KKKKKKKK",
+]
+
+MUSHROOM = [
+    "",
+    ".....KKKKKK",
+    "...KKeeeeeeKK",
+    "..KeeWWeeeeeeK",
+    ".KeeeWWeeeWWeeK",
+    ".KeeeeeeeeWWeeK",
+    ".KeeeeeeeeeeeeK",
+    "..KKKKKKKKKKKK",
+    "....KLLLLLLK",
+    "....KLPLLPLK",
+    "....KLLLLLLK",
+    "....KLKKKKLK",
+    "...KLLLLLLLLK",
+    "....KKK..KKK",
+]
+
+GHOST = [
+    "",
+    ".....KKKKKK",
+    "...KKssssssKK",
+    "..KssssssssssK",
+    ".KssPPssssPPssK",
+    ".KssPPssssPPssK",
+    ".KssssssssssssK",
+    ".KsssKKKKKsssK",
+    ".KssssssssssssK",
+    ".KssssssssssssK",
+    ".KssKssssssKssK",
+    "..KK.KssssK.KK",
+    "......KKKK",
+]
+
+GOLEM = [
+    "..KKKKKKKKKKKK",
+    ".KggggggggggggK",
+    ".KgYYggggggYYgK",
+    ".KgYYggggggYYgK",
+    ".KggggggggggggK",
+    ".KgggKKKKKKgggK",
+    "..KKKKKKKKKKKK",
+    "KKKggggggggKKKK",
+    "KggKggggggKggKK",
+    "KggKggggggKggK",
+    "KKKKggggggKKKK",
+    "...KggKKggK",
+    "...KggK.KggK",
+    "..KKggK.KggKK",
+    "..KKKKK.KKKKK",
+]
+
+POT = [
+    "",
+    "....KKKKKK",
+    "...KooooooK",
+    "....KKKKKK",
+    "...KooooooK",
+    "..KooooooooK",
+    ".KoooooooodoK",
+    ".KoooooooodoK",
+    ".KoooooooodoK",
+    "..KooooooooK",
+    "...KKKKKKKK",
+]
+
+POT_BROKEN = [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "..K..KK...K",
+    ".KoK.KooK.KoK",
+    ".KooKoooooKoK",
+    ".KoooooodooK",
+    "..KooooooooK",
+    "...KKKKKKKK",
+]
+
+HERB = [
+    "",
+    ".KK..KK",
+    "KGGKKGGK",
+    "KGGGGGGK",
+    ".KGGGGK",
+    "..KDDK",
+    "..KDDK",
+]
+
+COIN = [
+    ".KKKK",
+    "KYYYYK",
+    "KYWYYK",
+    "KYYYYK",
+    ".KKKK",
+]
+
+OBJECTS = {
+    "slime": {"w": 16, "frames": [SLIME, _shift_down(SLIME, 16)]},
+    "bat": {"w": 16, "frames": [BAT_1, BAT_2]},
+    "mushroom": {"w": 16, "frames": [MUSHROOM, _shift_down(MUSHROOM, 16)]},
+    "ghost": {"w": 16, "frames": [GHOST, _shift_down(GHOST, 16)]},
+    "golem": {"w": 16, "frames": [GOLEM, _shift_down(GOLEM, 16)]},
+    "pot": {"w": 14, "frames": [POT]},
+    "pot_broken": {"w": 14, "frames": [POT_BROKEN]},
+    "herb": {"w": 8, "frames": [HERB]},
+    "coin": {"w": 6, "frames": [COIN]},
+}
+
 
 # ---- PNG書き出し(純Python) ----
 
@@ -298,11 +470,17 @@ def main():
     for name, frames in SPRITES.items():
         data[name] = [to_rows(f()) for f in frames]
 
+    objects_js = {}
+    for name, obj in OBJECTS.items():
+        frames = [to_rows(grid(f, obj["w"])) for f in obj["frames"]]
+        objects_js[name] = {"w": obj["w"], "h": len(frames[0]), "frames": frames}
+
     palette_js = {k: (f"rgb({v[0]},{v[1]},{v[2]})" if v else None) for k, v in PALETTE.items()}
     js = (
         "// gen_sprites.pyから自動生成。直接編集しないこと。\n"
         f"export const PALETTE = {json.dumps(palette_js, ensure_ascii=False)};\n"
         f"export const SPRITES = {json.dumps(data, ensure_ascii=False)};\n"
+        f"export const OBJECTS = {json.dumps(objects_js, ensure_ascii=False)};\n"
         f"export const SPRITE_W = {W};\nexport const SPRITE_H = {H};\n"
     )
     (static_dir / "sprites.js").write_text(js, encoding="utf-8")
@@ -320,6 +498,10 @@ def main():
         for name, frames in SPRITES.items():
             for i, f in enumerate(frames):
                 write_png(out / f"{name}_{i}.png", render(to_rows(f())), scale=10)
+        for name, obj in OBJECTS.items():
+            for i, f in enumerate(obj["frames"]):
+                write_png(out / f"obj_{name}_{i}.png",
+                          render(to_rows(grid(f, obj["w"]))), scale=10)
         print(f"wrote previews to {out}")
 
 

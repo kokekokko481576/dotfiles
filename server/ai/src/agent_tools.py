@@ -125,6 +125,21 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "create_task",
+            "description": (
+                "新しいタスクを追加する(GitHub ProjectのDraft itemとして作成、Status=Todo)。"
+                "「〜をタスクに入れといて」「TODO追加」等の依頼で使う。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"title": {"type": "string", "description": "タスクのタイトル(簡潔に)"}},
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_task_status",
             "description": (
                 "タスクの進捗状態を変更する。番号付きタスクはnumber、番号のないメモ(Draft)は"

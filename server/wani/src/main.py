@@ -38,6 +38,10 @@ class StatusUpdate(BaseModel):
     status: str
 
 
+class TaskCreate(BaseModel):
+    title: str
+
+
 # 進捗の分母から外すStatus。waitingは他人待ち、wish listは後回しBOX(ユーザー命名)で
 # どちらも「今日の頑張り」の対象ではないため、ワニ博士の進捗バーには含めない。
 EXCLUDED_FROM_PROGRESS = {"waiting", "wish list"}
@@ -87,6 +91,19 @@ def healthz():
 @app.get("/api/state")
 def get_state():
     return _snapshot()
+
+
+@app.post("/api/tasks")
+def create_task(body: TaskCreate):
+    """タスク(Draft item)を追加する。PWAの+ボタンとbutler-botのcreate_taskが使う。"""
+    try:
+        result = source.create_task(body.title)
+    except Exception as e:
+        log.exception("タスク追加に失敗")
+        raise HTTPException(status_code=502, detail=str(e))
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @app.post("/api/tasks/{item_id}/status")

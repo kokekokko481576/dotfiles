@@ -1,7 +1,8 @@
 // 静的ファイルのみキャッシュするService Worker。/api/は常にネットワーク。
 // PWAのインストール要件を満たすための最小構成。
-const CACHE = "wani-v1";
+const CACHE = "wani-v2";
 const ASSETS = ["./", "index.html", "style.css", "app.js", "sprites.js",
+                "classic.js", "adventure.js", "map.js",
                 "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {

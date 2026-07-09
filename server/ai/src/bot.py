@@ -255,6 +255,24 @@ async def wani_update_status(status: str, number: int | None = None, title: str 
     return "\n".join(lines)
 
 
+async def wani_create_task(title: str) -> str:
+    """ワニ博士アプリ経由でタスク(Draft item)を追加する。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{WANI_API_URL}/api/tasks",
+                json={"title": title},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    return f"（追加に失敗しました: {body.get('detail', resp.status)}）"
+    except Exception as e:
+        log.error(f"wani create_task error: {e}")
+        return f"（追加に失敗しました: {e}）"
+    return f"「{body['task']['title']}」をタスクに追加しました(Status: {body['task']['status']})。"
+
+
 async def run_agent_turn(channel, requester, messages: list) -> str:
     """ツール呼び出し込みでLLMと対話し、最終的なテキスト返答を返す。"""
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -304,6 +322,8 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                     result = {"ok": True, "output": await web_tools.fetch_url(args.get("url", ""))}
                 elif name == "list_tasks":
                     result = {"ok": True, "output": await wani_list_tasks()}
+                elif name == "create_task":
+                    result = {"ok": True, "output": await wani_create_task(args.get("title", ""))}
                 elif name == "update_task_status":
                     result = {"ok": True, "output": await wani_update_status(
                         args.get("status", ""),

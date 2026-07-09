@@ -100,6 +100,16 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 }
 """
 
+# Draft item(リポジトリに属さないメモ的タスク)としてProjectに直接追加する。
+# issue作成と違いリポジトリ指定が不要なので、UI/Discordからの気軽な追加に向く
+_ADD_DRAFT_MUTATION = """
+mutation($projectId: ID!, $title: String!) {
+  addProjectV2DraftIssue(input: { projectId: $projectId, title: $title }) {
+    projectItem { id }
+  }
+}
+"""
+
 
 class TaskSource:
     """GitHub Projects V2またはモックJSONを同一インターフェースで扱う。"""
@@ -177,6 +187,42 @@ class TaskSource:
             task = dict(task, status=matched)
 
         return {"ok": True, "old_status": old_status, "new_status": matched, "task": task}
+
+    def create_task(self, title: str) -> dict:
+        """Draft itemとしてタスクを追加し、作成されたtaskを返す。"""
+        title = title.strip()
+        if not title:
+            return {"ok": False, "error": "タイトルが空です"}
+        if len(title) > 200:
+            return {"ok": False, "error": "タイトルが長すぎます(200文字まで)"}
+
+        if self.mock:
+            tasks = store.load_mock_tasks()
+            item_id = f"mock-{max((int(t['item_id'].split('-')[1]) for t in tasks if t['item_id'].startswith('mock-')), default=0) + 1}"
+            task = {"item_id": item_id, "number": None, "title": title, "url": "",
+                    "repo": "", "labels": [], "status": "Todo", "draft": True}
+            tasks.append(task)
+            store.save_mock_tasks(tasks)
+            return {"ok": True, "task": task}
+
+        self.list_tasks()  # project_id / statusフィールド情報を確保
+        data = self._graphql(_ADD_DRAFT_MUTATION,
+                             {"projectId": self._project_id, "title": title})
+        item_id = data["addProjectV2DraftIssue"]["projectItem"]["id"]
+        # 新規DraftはStatus未設定なので明示的にTodoへ(選択肢に無ければ未設定のまま)
+        todo = self._match_status("Todo", list(self._status_options))
+        if todo:
+            self._graphql(_UPDATE_STATUS_MUTATION, {
+                "projectId": self._project_id,
+                "itemId": item_id,
+                "fieldId": self._status_field_id,
+                "optionId": self._status_options[todo],
+            })
+        with self._lock:
+            self._cache_at = 0.0
+        task = {"item_id": item_id, "number": None, "title": title, "url": "",
+                "repo": "", "labels": [], "status": todo or "Todo", "draft": True}
+        return {"ok": True, "task": task}
 
     # ---- 内部 ----
 
