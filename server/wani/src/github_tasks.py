@@ -23,11 +23,26 @@ log = logging.getLogger(__name__)
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 CACHE_TTL_SEC = 60  # /api/state毎にGraphQLを叩かないための読み取りキャッシュ
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-PROJECT_OWNER = os.environ.get("GITHUB_PROJECT_OWNER", "")
-PROJECT_OWNER_TYPE = os.environ.get("GITHUB_PROJECT_OWNER_TYPE", "organization")
-PROJECT_NUMBER = int(os.environ.get("GITHUB_PROJECT_NUMBER", "0") or "0")
-STATUS_FIELD_NAME = os.environ.get("GITHUB_STATUS_FIELD_NAME", "Status")
+def _env(name: str, default: str = "") -> str:
+    # docker composeのenv_fileは行内コメントを値に含めてしまうため、防御的に除去する
+    # (過去に「GITHUB_PROJECT_NUMBER=  # コメント」で起動ループになった)
+    return os.environ.get(name, default).split("#")[0].strip()
+
+
+def _int_env(name: str) -> int:
+    raw = _env(name)
+    try:
+        return int(raw or "0")
+    except ValueError:
+        log.warning("環境変数 %s が数値でないため無視します: %r", name, raw)
+        return 0
+
+
+GITHUB_TOKEN = _env("GITHUB_TOKEN")
+PROJECT_OWNER = _env("GITHUB_PROJECT_OWNER")
+PROJECT_OWNER_TYPE = _env("GITHUB_PROJECT_OWNER_TYPE", "organization")
+PROJECT_NUMBER = _int_env("GITHUB_PROJECT_NUMBER")
+STATUS_FIELD_NAME = _env("GITHUB_STATUS_FIELD_NAME") or "Status"
 
 MOCK_MODE = not (GITHUB_TOKEN and PROJECT_OWNER and PROJECT_NUMBER)
 # ユーザーの実Projectと同じ並び(guide/13参照)。実モードではGitHubから取得した選択肢が使われる
