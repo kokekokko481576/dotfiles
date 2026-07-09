@@ -8,7 +8,7 @@
 |-----|------|--------|
 | `DB_PASSWORD` | 自分で生成 | **必須**（Immich起動に必要） |
 | `GEMINI_API_KEY` | Google AI Studio | **必須**（AIチャットに必要） |
-| `DISCORD_TOKEN` | Discord Developer Portal | ★（Butler Bot用） |
+| `DISCORD_TOKEN_BUTLER` | Discord Developer Portal | ★（Butler Bot用） |
 | `N8N_PASSWORD` | 自分で決める | **必須**（n8nログイン用） |
 | `SWITCHBOT_TOKEN` | Switchbotアプリ | 任意 |
 
@@ -89,6 +89,35 @@ Switchbotデバイスを持っている場合のみ：
 SWITCHBOT_TOKEN=token...
 SWITCHBOT_SECRET=secret...
 ```
+
+---
+
+## ステップ7: 執事BotのWeb検索について（設定不要）
+
+執事Botの `web_search` ツールは **Vertex AI Geminiの「Grounding with Google Search」**
+を使う。LiteLLM経由で `tools=[{"googleSearch": {}}]` を渡すだけで動くため、
+Vertex AI（`vertex-sa.json`）が設定済みなら**追加のAPIキーは不要**。
+`fetch_url`（URL閲覧）も同様にキー不要。
+
+過去の変遷（同じ轍を踏まないための記録）:
+- DuckDuckGoスクレイピング → このサーバーのIPがbot対策で常時ブロックされ断念
+- Google Custom Search JSON API → キー作成・API有効化・billing紐付けを全て行っても
+  `This project does not have the access to Custom Search JSON API` (403) が解消せず断念。
+  `.env` の `GOOGLE_CSE_API_KEY` / `GOOGLE_CSE_ID` はこの名残で、現在は未使用（削除してよい）
+
+動作確認（コンテナ内から）:
+
+```bash
+docker exec butler_bot python -c "
+import asyncio, sys; sys.path.insert(0, '/app/src')
+import web_tools
+print(asyncio.run(web_tools.web_search('今日の大阪の天気')))
+"
+```
+
+コスト注意: groundingは通常のGemini呼び出しより高い（Vertex AIのGrounding with
+Google Search課金、無料枠超過後は検索1,000回あたり$35）。個人のチャット用途の
+頻度なら実質無料枠内に収まる。
 
 ---
 

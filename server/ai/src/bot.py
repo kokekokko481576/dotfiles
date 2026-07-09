@@ -48,9 +48,7 @@ CONFIRM_TIMEOUT_SEC = 300
 # ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
 llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY)
 
-# Botはインターネット検索がほぼ使えない(web_tools.web_searchはDuckDuckGo側のbot対策で
-# ブロックされる)ため、キャラクターの口調はモデルの曖昧な知識に頼らず、このファイルで
-# 明示的に与える。
+# キャラクターの口調はモデルの曖昧な知識やWeb検索に頼らず、このファイルで明示的に与える。
 PERSONA_FILE = Path(__file__).parent / "persona_whisper.md"
 PERSONA_STYLE = PERSONA_FILE.read_text(encoding="utf-8") if PERSONA_FILE.exists() else ""
 
