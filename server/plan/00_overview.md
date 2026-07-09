@@ -35,7 +35,10 @@ server/
 ├── samba/                 # Samba設定
 ├── litellm/               # Vertex AI Gemini中継(LiteLLM)の設定
 ├── homepage/              # ダッシュボードの設定
-├── ai/                    # AIエージェント関連
+├── ai/                    # AIエージェント関連（Butler Bot、自宅サーバー上でdocker-compose管理）
+├── task-agent/            # タスク管理エージェント兼思考ログシステム（12_task-management.md）
+│                          # docker-compose.ymlに --profile task-agent として定義、
+│                          # systemd timer(scripts/systemd/task-agent-*.timer)から1日2回起動
 └── scripts/               # セットアップ・運用スクリプト
 ```
 

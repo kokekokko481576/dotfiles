@@ -44,8 +44,9 @@
 3. 表示されたトークンをコピー（**一度しか表示されません！**）
 4. `.env` に設定：
    ```
-   DISCORD_TOKEN=コピーしたトークン
+   DISCORD_TOKEN_BUTLER=コピーしたトークン
    ```
+   （task-agent用の別Bot(`DISCORD_TOKEN_OLLAMA`)を作る場合は`12_タスク管理エージェント設定.md`参照）
 
 ### 権限の設定
 

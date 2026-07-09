@@ -1,0 +1,9 @@
+[Unit]
+Description=Run task-agent-collect daily at 22:00 JST
+
+[Timer]
+OnCalendar=*-*-* 22:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

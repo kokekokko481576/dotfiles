@@ -1,0 +1,10 @@
+[Unit]
+Description=Task Agent - Discord返信の回収とGitHub Project更新(夜)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/docker compose --profile task-agent run --rm task-agent-collect
+User=kokko

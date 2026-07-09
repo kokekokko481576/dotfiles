@@ -1,0 +1,10 @@
+[Unit]
+Description=Task Agent - GitHub Projectタスクのレコメンド投稿(朝)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/docker compose --profile task-agent run --rm task-agent-recommend
+User=kokko
