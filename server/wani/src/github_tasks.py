@@ -110,6 +110,18 @@ mutation($projectId: ID!, $title: String!) {
 }
 """
 
+# Project内の手動並び順を変更する(afterId=nullで先頭へ)。
+# 冒険モードの敵の隊列 = Projectの並び順で、GitHub側のボードにも反映される
+_MOVE_ITEM_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!, $afterId: ID) {
+  updateProjectV2ItemPosition(input: {
+    projectId: $projectId, itemId: $itemId, afterId: $afterId
+  }) {
+    items(first: 1) { totalCount }
+  }
+}
+"""
+
 
 class TaskSource:
     """GitHub Projects V2またはモックJSONを同一インターフェースで扱う。"""
@@ -187,6 +199,33 @@ class TaskSource:
             task = dict(task, status=matched)
 
         return {"ok": True, "old_status": old_status, "new_status": matched, "task": task}
+
+    def move_item(self, item_id: str, after_id: str | None) -> dict:
+        """itemをafter_idの直後(Noneなら先頭)へ移動する。"""
+        tasks = self.list_tasks()
+        if not any(t["item_id"] == item_id for t in tasks):
+            return {"ok": False, "error": f"item_id '{item_id}' が見つかりません"}
+        if after_id is not None and not any(t["item_id"] == after_id for t in tasks):
+            return {"ok": False, "error": f"after_id '{after_id}' が見つかりません"}
+
+        if self.mock:
+            moving = next(t for t in tasks if t["item_id"] == item_id)
+            rest = [t for t in tasks if t["item_id"] != item_id]
+            if after_id is None:
+                rest.insert(0, moving)
+            else:
+                idx = next(i for i, t in enumerate(rest) if t["item_id"] == after_id)
+                rest.insert(idx + 1, moving)
+            store.save_mock_tasks(rest)
+        else:
+            self._graphql(_MOVE_ITEM_MUTATION, {
+                "projectId": self._project_id,
+                "itemId": item_id,
+                "afterId": after_id,
+            })
+            with self._lock:
+                self._cache_at = 0.0
+        return {"ok": True}
 
     def create_task(self, title: str) -> dict:
         """Draft itemとしてタスクを追加し、作成されたtaskを返す。"""

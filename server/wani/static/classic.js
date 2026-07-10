@@ -116,9 +116,9 @@ export function initClassic(core) {
       div.textContent = state.error ? "" : "アクティブなタスクがありません。＋で追加してください。";
       list.appendChild(div);
     } else {
+      // 並びはProjectの手動順を尊重(冒険モードの隊列と同じ)。Doneだけ下へ
       active.sort((a, b) =>
-        (statusOf(a) === "done" ? 1 : 0) - (statusOf(b) === "done" ? 1 : 0)
-        || (a.number ?? 1e9) - (b.number ?? 1e9));
+        (statusOf(a) === "done" ? 1 : 0) - (statusOf(b) === "done" ? 1 : 0));
       for (const t of active) list.appendChild(taskCard(t));
     }
     for (const [tasks, boxId, listId, countId] of [

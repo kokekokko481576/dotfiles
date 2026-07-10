@@ -52,10 +52,21 @@ function progressOf() {
   const done = scoped.filter(t => (t.status||"").toLowerCase() === "done").length;
   return {done, total: scoped.length, percent: scoped.length ? Math.round(done*100/scoped.length) : 0};
 }
+function mockEvents() {
+  // 「いま割り込み中の予定」1件 + 後の予定1件をデモ表示する
+  const now = new Date();
+  const mk = (offsetMin, durMin, title) => {
+    const s = new Date(now.getTime() + offsetMin * 60000);
+    const e = new Date(s.getTime() + durMin * 60000);
+    return {title, start: s.toISOString(), end: e.toISOString(), all_day: false};
+  };
+  return [mk(-10, 60, "ゼミ"), mk(120, 60, "実験装置の予約")];
+}
 function stateNow() {
   MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
   return {mock: true, error: null, mood: {...MOCK_MOOD}, progress: progressOf(),
-          tasks: MOCK_TASKS.map(t => ({...t})), statuses: MOCK_STATUSES, now: new Date().toISOString()};
+          tasks: MOCK_TASKS.map(t => ({...t})), statuses: MOCK_STATUSES,
+          events: mockEvents(), now: new Date().toISOString()};
 }
 window.fetch = async (url, opts = {}) => {
   const respond = (obj, status = 200) =>
@@ -78,6 +89,16 @@ window.fetch = async (url, opts = {}) => {
     }
     MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
     return respond({ok: true, task: {...task}, event, mood: {...MOCK_MOOD}});
+  }
+  if ((m = url.match(/api\\/tasks\\/([^/]+)\\/move/))) {
+    const id = decodeURIComponent(m[1]);
+    const {after_item_id} = JSON.parse(opts.body);
+    const i = MOCK_TASKS.findIndex(t => t.item_id === id);
+    if (i === -1) return respond({detail: "not found"}, 400);
+    const [moving] = MOCK_TASKS.splice(i, 1);
+    if (after_item_id == null) MOCK_TASKS.unshift(moving);
+    else MOCK_TASKS.splice(MOCK_TASKS.findIndex(t => t.item_id === after_item_id) + 1, 0, moving);
+    return respond({ok: true});
   }
   if (url.match(/api\\/tasks$/)) {
     const {title} = JSON.parse(opts.body);

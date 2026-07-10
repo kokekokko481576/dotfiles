@@ -40,10 +40,9 @@ export function initMap(core) {
     waniIcon = waniIcon || makeWaniIcon();
     const root = $("map-root");
     const active = state.tasks.filter((t) => !EXCLUDED.has(statusOf(t)));
-    const order = { "done": 0, "review": 1, "in progress": 2, "todo": 3 };
+    // 討伐済みを道の先頭(通過済み)に、残りはProjectの手動順
     active.sort((a, b) =>
-      (order[statusOf(a)] ?? 4) - (order[statusOf(b)] ?? 4)
-      || (a.number ?? 1e9) - (b.number ?? 1e9));
+      (statusOf(a) === "done" ? 0 : 1) - (statusOf(b) === "done" ? 0 : 1));
 
     $("map-progress").textContent = `${state.progress.done} / ${state.progress.total}`;
 

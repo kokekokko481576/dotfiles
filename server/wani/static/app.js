@@ -32,6 +32,17 @@ async function apiUpdateStatus(task, status) {
   return body; // {ok, task, event, mood}
 }
 
+async function apiMove(task, afterItemId) {
+  const res = await fetch(`api/tasks/${encodeURIComponent(task.item_id)}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ after_item_id: afterItemId }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.detail || res.statusText);
+  return body;
+}
+
 async function apiCreateTask(title) {
   const res = await fetch("api/tasks", {
     method: "POST",
@@ -71,6 +82,12 @@ function renderShared() {
 }
 
 // ---- タスク操作シート(ぼうけん/マップから使う共通UI) ----
+function activeQueue() {
+  // 冒険モードの敵の隊列と同じ並び(=Projectの手動順、Done/待ち/後回しを除く)
+  return state.tasks.filter(
+    (t) => !EXCLUDED.has(statusOf(t)) && statusOf(t) !== "done");
+}
+
 function showTaskSheet(task) {
   $("sheet-title").textContent = (task.number ? `#${task.number} ` : "") + task.title;
   $("sheet-meta").textContent =
@@ -97,6 +114,59 @@ function showTaskSheet(task) {
     };
     actions.appendChild(btn);
   }
+
+  // 並び替え(たたかう順 = GitHub Projectの並び順にも反映される)
+  const order = $("sheet-order");
+  order.replaceChildren();
+  const queue = activeQueue();
+  const idx = queue.findIndex((t) => t.item_id === task.item_id);
+  if (idx !== -1 && queue.length > 1) {
+    const label = document.createElement("span");
+    label.className = "sheet-order-label";
+    label.textContent = `たたかう順: ${idx + 1}/${queue.length}`;
+    order.appendChild(label);
+    const moves = [
+      ["⏫ せんとう", idx > 0 ? null : undefined, idx > 0],
+      ["◀ まえへ", idx > 1 ? queue[idx - 2].item_id : null, idx > 0],
+      ["▶ うしろへ", idx < queue.length - 1 ? queue[idx + 1].item_id : null, idx < queue.length - 1],
+    ];
+    for (const [text, afterId, enabled] of moves) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "status-btn";
+      btn.textContent = text;
+      btn.disabled = !enabled;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          await apiMove(task, afterId ?? null);
+          closeSheet();
+          await refresh();
+        } catch (e) {
+          showError(`並び替えに失敗しました: ${e.message}`);
+        }
+      };
+      order.appendChild(btn);
+    }
+  }
+  $("sheet-backdrop").hidden = false;
+}
+
+// ---- 予定(カレンダー)シート: ぼうけんモードの割り込み敵用 ----
+function showEventSheet(ev, onDone) {
+  $("sheet-title").textContent = `📅 ${ev.title}`;
+  const fmt = (iso) => new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  $("sheet-meta").textContent =
+    `Googleカレンダーの予定 ${fmt(ev.start)}${ev.end ? "〜" + fmt(ev.end) : ""}`;
+  $("sheet-order").replaceChildren();
+  const actions = $("sheet-actions");
+  actions.replaceChildren();
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "status-btn active";
+  btn.textContent = "すんだ！";
+  btn.onclick = () => { closeSheet(); onDone?.(); };
+  actions.appendChild(btn);
   $("sheet-backdrop").hidden = false;
 }
 function closeSheet() { $("sheet-backdrop").hidden = true; }
@@ -135,6 +205,7 @@ const core = {
   updateStatus: apiUpdateStatus,
   refresh,
   showTaskSheet,
+  showEventSheet,
   showError,
   statusJa, statusOf,
   EXCLUDED,

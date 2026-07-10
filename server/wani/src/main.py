@@ -12,9 +12,12 @@
 import logging
 import os
 import sys
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -32,6 +35,46 @@ app = FastAPI(title="wani-api")
 source = github_tasks.TaskSource()
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
+DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
+
+# n8nの「毎朝ブリーフィング_今日の予定取得」Webhook(butler-botと同じもの)。
+# 冒険モードで「予定の時間になったら敵として割り込む」ために使う
+N8N_TODAY_SCHEDULE_URL = os.environ.get(
+    "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+EVENTS_CACHE_TTL = 300
+
+_events_lock = threading.Lock()
+_events_cache: list | None = None
+_events_at = 0.0
+
+
+def fetch_today_events() -> list[dict]:
+    """今日のGoogleカレンダー予定を{title, start, end, all_day}に正規化して返す。"""
+    global _events_cache, _events_at
+    with _events_lock:
+        if _events_cache is not None and time.time() - _events_at < EVENTS_CACHE_TTL:
+            return _events_cache
+    events = []
+    try:
+        resp = requests.get(N8N_TODAY_SCHEDULE_URL, timeout=10)
+        resp.raise_for_status()
+        for e in resp.json() or []:
+            start = e.get("start", {})
+            end = e.get("end", {})
+            events.append({
+                "title": e.get("summary", "(無題)"),
+                "start": start.get("dateTime") or start.get("date"),
+                "end": end.get("dateTime") or end.get("date"),
+                "all_day": "dateTime" not in start,
+            })
+        events.sort(key=lambda e: e["start"] or "")
+    except Exception as e:
+        log.warning("カレンダー取得に失敗(予定なし扱い): %s", e)
+        events = []
+    with _events_lock:
+        _events_cache = events
+        _events_at = time.time()
+    return events
 
 
 class StatusUpdate(BaseModel):
@@ -40,6 +83,10 @@ class StatusUpdate(BaseModel):
 
 class TaskCreate(BaseModel):
     title: str
+
+
+class TaskMove(BaseModel):
+    after_item_id: str | None = None  # Noneなら先頭へ
 
 
 # 進捗の分母から外すStatus。waitingは他人待ち、wish listは後回しBOX(ユーザー命名)で
@@ -79,6 +126,7 @@ def _snapshot() -> dict:
         "progress": _progress(tasks),
         "tasks": tasks,
         "statuses": statuses,
+        "events": fetch_today_events(),
         "now": now.isoformat(),
     }
 
@@ -100,6 +148,19 @@ def create_task(body: TaskCreate):
         result = source.create_task(body.title)
     except Exception as e:
         log.exception("タスク追加に失敗")
+        raise HTTPException(status_code=502, detail=str(e))
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/tasks/{item_id}/move")
+def move_task(item_id: str, body: TaskMove):
+    """タスクの並び順を変更する(GitHub Projectの手動並び順にも反映)。"""
+    try:
+        result = source.move_item(item_id, body.after_item_id)
+    except Exception as e:
+        log.exception("並び替えに失敗")
         raise HTTPException(status_code=502, detail=str(e))
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -141,6 +202,12 @@ def update_status(item_id: str, body: StatusUpdate):
         "mood": mood.summary(state, now),
     }
 
+
+# ユーザーがローカルに置いた画像(例: 公式ワニ博士のwani.png)の配信。
+# リポジトリには含めず、/mnt/data/ai/wani/assets/ に置いたものだけが使われる
+ASSETS_DIR = DATA_DIR / "assets"
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 # 最後にマウント(APIパスを食わないように)
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

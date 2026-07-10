@@ -415,6 +415,24 @@ COIN = [
     ".KKKK",
 ]
 
+# カレンダー予定の割り込み敵「じかんまじん」(目覚まし時計)
+CLOCK = [
+    "",
+    "..KK........KK",
+    ".KYYK......KYYK",
+    "..KKKKKKKKKKKK",
+    "...KYYYYYYYYK",
+    "..KYWWWWWWWWYK",
+    ".KYWWWWPWWWWWYK",
+    ".KYWWWWPWWWWWYK",
+    ".KYWWWWPPPWWWYK",
+    ".KYWWWWWWWWWWYK",
+    "..KYWWWWWWWWYK",
+    "...KYYYYYYYYK",
+    "....KKKKKKKK",
+    "...KKK....KKK",
+]
+
 OBJECTS = {
     "slime": {"w": 16, "frames": [SLIME, _shift_down(SLIME, 16)]},
     "bat": {"w": 16, "frames": [BAT_1, BAT_2]},
@@ -425,6 +443,7 @@ OBJECTS = {
     "pot_broken": {"w": 14, "frames": [POT_BROKEN]},
     "herb": {"w": 8, "frames": [HERB]},
     "coin": {"w": 6, "frames": [COIN]},
+    "clock": {"w": 16, "frames": [CLOCK, _shift_down(CLOCK, 16)]},
 }
 
 

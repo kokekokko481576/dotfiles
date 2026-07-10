@@ -192,6 +192,14 @@ body {
 .sheet-title { font-size: 15px; font-weight: 700; line-height: 1.4; }
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .sheet-actions .status-btn { flex: 1 1 28%; }
+.sheet-order {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  border-top: 1.5px dashed var(--line);
+  padding-top: 8px;
+}
+.sheet-order:empty { display: none; }
+.sheet-order .status-btn { flex: 1; }
+.sheet-order-label { font-size: 11px; color: var(--sub); width: 100%; }
 
 /* ---- ぼうけんモード ---- */
 .adv-card {
@@ -208,11 +216,14 @@ body {
 }
 #adv-canvas {
   width: 100%; height: auto;
-  aspect-ratio: 360 / 200;
-  image-rendering: pixelated;
+  aspect-ratio: 640 / 220;
   border-radius: 10px;
   border: 1.5px solid var(--line);
   touch-action: manipulation;
+}
+/* 横向きスマホではキャンバスを画面いっぱいに使う */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app { max-width: 760px; }
 }
 .adv-msg {
   background: #0a0a14;
