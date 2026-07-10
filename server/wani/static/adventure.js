@@ -20,7 +20,22 @@ const ENEMY_TYPES = ["slime", "bat", "mushroom", "ghost", "golem"];
 const ENEMY_NAMES = {
   slime: "タスクスライム", bat: "しめきりコウモリ", mushroom: "さきのばしダケ",
   ghost: "みえないおばけ", golem: "おもごしゴーレム", clock: "じかんまじん",
+  chip: "バグったIC", bug: "バイナリむし", turtle: "あばれタートル",
 };
+// リポジトリ名 → 敵の見た目。部分一致(大文字小文字無視)で最初にマッチしたもの。
+// マッチしなければタスクIDのハッシュでENEMY_TYPESから安定して選ぶ
+const REPO_ENEMIES = [
+  [/kicad|pcb|circuit/i, "chip"],      // 回路・基板系
+  [/lowlayer|firm|embed/i, "bug"],     // ファームウェア・組込み系
+  [/ros|ubuntu/i, "turtle"],           // ROS/Ubuntu系
+];
+
+function enemyTypeFor(task) {
+  for (const [re, type] of REPO_ENEMIES) {
+    if (re.test(task.repo || "")) return type;
+  }
+  return ENEMY_TYPES[hashStr(task.item_id) % ENEMY_TYPES.length];
+}
 
 // ---- ドット絵のオフスクリーンキャッシュ ----
 const cache = new Map();
@@ -246,7 +261,7 @@ export function initAdventure(core) {
       .filter((tk) => !EXCLUDED.has(statusOf(tk)) && statusOf(tk) !== "done")
       .map((task) => ({
         kind: "task", task,
-        type: ENEMY_TYPES[hashStr(task.item_id) % ENEMY_TYPES.length],
+        type: enemyTypeFor(task),
         key: task.item_id, seed: hashStr(task.item_id),
       }));
     const next = [...evs, ...tasks];
@@ -302,8 +317,9 @@ export function initAdventure(core) {
     }
   }
 
+  // フリップはゆっくり1回転(約0.8秒)。裏面(=別の表情)がしっかり見えるように
   function flipWani(toFace, ms = 0) {
-    setTimeout(() => { waniFx = { t: 0, life: 22, toFace, until: Date.now() + 2600 }; }, ms);
+    setTimeout(() => { waniFx = { t: 0, life: 50, toFace, until: Date.now() + 3200 }; }, ms);
   }
 
   function playKill(targetKey) {
@@ -319,7 +335,7 @@ export function initAdventure(core) {
     setTimeout(() => {
       say(crit ? "かいしんの いちげき！！" : "こうげき！ たおした！");
       flipWani("excellent");
-      if (a) { a.dying = true; a.flipHit = { t: 0, life: 14 }; }
+      if (a) { a.dying = true; a.flipHit = { t: 0, life: 34 }; }
       spawnBurst(x, GROUND_Y - 40, crit ? "#ffd447" : "#ffffff");
       spawnDrop(x, GROUND_Y - 30);
       scrollTarget += 80;
@@ -331,7 +347,7 @@ export function initAdventure(core) {
     say("たたかいを いどんだ！");
     if (REDUCED) return;
     flipWani("happy");
-    if (a) a.flipHit = { t: 0, life: 16 };
+    if (a) a.flipHit = { t: 0, life: 34 };
     effects.push({ kind: "potbreak", x: WANI_X + 80, y: GROUND_Y, t: 0, life: 40 });
     effects.push({ kind: "drop", sprite: "herb", x: WANI_X + 86, y: GROUND_Y - 10, vy: -2.4, t: 0, life: 46 });
   }

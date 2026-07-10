@@ -34,9 +34,9 @@ NOTE_CSS = """
 FETCH_SHIM = """
 // ---- fetchモック(プレビュー専用): 実APIの代わりにページ内データで応答する ----
 const MOCK_TASKS = [
-  {item_id: "d1", number: 10, title: "BLDC試運転", repo: "personal-tasks", labels: ["hw"], status: "In Progress", draft: false},
-  {item_id: "d2", number: 15, title: "ハンダ付け", repo: "personal-tasks", labels: ["hw"], status: "In Progress", draft: false},
-  {item_id: "d3", number: 4, title: "py-ship-sym触ってみる", repo: "personal-tasks", labels: [], status: "Todo", draft: false},
+  {item_id: "d1", number: 10, title: "BLDC試運転", repo: "azimuth_lowlayer", labels: ["hw"], status: "In Progress", draft: false},
+  {item_id: "d2", number: 15, title: "基板の配線見直し", repo: "azimuth_kicad", labels: ["hw"], status: "In Progress", draft: false},
+  {item_id: "d3", number: 4, title: "ナビゲーションノード作成", repo: "azimuth_ros", labels: [], status: "Todo", draft: false},
   {item_id: "d4", number: 14, title: "追加発注リスト", repo: "personal-tasks", labels: [], status: "Todo", draft: false},
   {item_id: "d5", number: 1, title: "コントローラー送信側ファームウェア", repo: "personal-tasks", labels: [], status: "waiting", draft: false},
   {item_id: "d6", number: 2, title: "無線基板ファームウェア", repo: "personal-tasks", labels: [], status: "waiting", draft: false},

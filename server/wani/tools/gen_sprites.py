@@ -43,6 +43,8 @@ PALETTE = {
     "g": (148, 148, 158),  # ゴーレム(灰)
     "o": (205, 124, 74),   # ツボ(テラコッタ)
     "d": (152, 84, 46),    # ツボの影
+    "u": (233, 110, 50),   # タートルの甲羅(Ubuntuオレンジ)
+    "B": (30, 32, 40),     # ICチップの黒
 }
 
 W = 32
@@ -415,7 +417,57 @@ COIN = [
     ".KKKK",
 ]
 
-# カレンダー予定の割り込み敵「じかんまじん」(目覚まし時計)
+# リポジトリ対応の敵: azimuth_kicad → バグったIC(回路)
+CHIP = [
+    "",
+    "...Kg....g.gK",
+    "..KKKKKKKKKKKK",
+    ".gKBBBBBBBBBBKg",
+    "..KBYBBBBBBBBK",
+    ".gKBWWBBBBWWBKg",
+    "..KBWPBBBBWPBK",
+    ".gKBBBBBBBBBBKg",
+    "..KBBKKKKKKBBK",
+    ".gKBBBBBBBBBBKg",
+    "..KKKKKKKKKKKK",
+    "...Kg.Kg.Kg.gK",
+    "...Kg.Kg.Kg.gK",
+]
+
+# azimuth_lowlayer → バイナリむし(ファームウェア)
+BUG = [
+    "..K.......K",
+    "...K.....K",
+    "...KKKKKKK",
+    "..KnnWnWnnK",
+    "..KnnPnPnnK",
+    ".KKKKKKKKKKK",
+    "KKDDDDDDDDDKK",
+    "KgDWWWDDWDDgK",
+    "KKDWDWDDWDDKK",
+    "KgDWDWDDWDDgK",
+    "KKDWWWDDWDDKK",
+    "KgDDDDDDDDDgK",
+    ".KKKKKKKKKKK",
+    "..KK.KK.KK",
+]
+
+# azimuth_ros → あばれタートル(ROS turtlesim/Ubuntuオレンジ)
+TURTLE = [
+    "......KKKK",
+    ".....KGGGGK",
+    ".....KGPGPGK",
+    ".....KGGGGGK",
+    "...KKKuuuuKKK",
+    "..KuuudddduuuK",
+    ".KuuuduuuuduuuK",
+    ".KuuduuuuuuduuK",
+    ".KuuuduuuuduuuK",
+    "..KuuudddduuuK",
+    ".KGGKKKKKKKKGGK",
+    ".KGGK......KGGK",
+    "..KK........KK",
+]
 CLOCK = [
     "",
     "..KK........KK",
@@ -444,6 +496,9 @@ OBJECTS = {
     "herb": {"w": 8, "frames": [HERB]},
     "coin": {"w": 6, "frames": [COIN]},
     "clock": {"w": 16, "frames": [CLOCK, _shift_down(CLOCK, 16)]},
+    "chip": {"w": 16, "frames": [CHIP, _shift_down(CHIP, 16)]},
+    "bug": {"w": 16, "frames": [BUG, _shift_down(BUG, 16)]},
+    "turtle": {"w": 16, "frames": [TURTLE, _shift_down(TURTLE, 16)]},
 }
 
 
