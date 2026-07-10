@@ -43,6 +43,10 @@ PROJECT_OWNER = _env("GITHUB_PROJECT_OWNER")
 PROJECT_OWNER_TYPE = _env("GITHUB_PROJECT_OWNER_TYPE", "organization")
 PROJECT_NUMBER = _int_env("GITHUB_PROJECT_NUMBER")
 STATUS_FIELD_NAME = _env("GITHUB_STATUS_FIELD_NAME") or "Status"
+# 期限として読み書きする日付フィールド名。ユーザーのProjectには「期限」「着手」の
+# 2つのDATEフィールドがあり、読み書きが別フィールドに割れると「保存したのに
+# 変わらない」事故になるため、名前で1つに固定する(無ければ最初のDATEフィールド)
+DUE_FIELD_NAME = _env("GITHUB_DUE_FIELD_NAME") or "期限"
 
 MOCK_MODE = not (GITHUB_TOKEN and PROJECT_OWNER and PROJECT_NUMBER)
 # ユーザーの実Projectと同じ並び(guide/13参照)。実モードではGitHubから取得した選択肢が使われる
@@ -160,7 +164,8 @@ class TaskSource:
         self._project_id = None
         self._status_field_id = None
         self._status_options: dict[str, str] = {}
-        self._date_field_id = None  # 最初のDATEフィールド(期限扱い)
+        self._date_field_id = None    # DUE_FIELD_NAMEのDATEフィールド
+        self._date_field_name = None  # 実際に使っているフィールド名
         if not self.mock:
             self._session = requests.Session()
             self._session.headers.update({
@@ -370,8 +375,15 @@ class TaskSource:
                 if field.get("name") == STATUS_FIELD_NAME and "options" in field:
                     self._status_field_id = field["id"]
                     self._status_options = {o["name"]: o["id"] for o in field["options"]}
-                elif field.get("dataType") == "DATE" and self._date_field_id is None:
-                    self._date_field_id = field["id"]
+                elif field.get("dataType") == "DATE":
+                    if field.get("name") == DUE_FIELD_NAME:
+                        # 名前一致を最優先
+                        self._date_field_id = field["id"]
+                        self._date_field_name = field["name"]
+                    elif self._date_field_id is None:
+                        # フォールバック: 最初のDATEフィールド
+                        self._date_field_id = field["id"]
+                        self._date_field_name = field.get("name")
 
             for node in project["items"]["nodes"]:
                 content = node.get("content") or {}
@@ -384,11 +396,13 @@ class TaskSource:
                 for fv in node["fieldValues"]["nodes"]:
                     if not fv:
                         continue
-                    if fv.get("field", {}).get("name") == STATUS_FIELD_NAME:
+                    fname = fv.get("field", {}).get("name")
+                    if fname == STATUS_FIELD_NAME:
                         status_name = fv.get("name")
-                    elif "date" in fv:
-                        # Projectの日付フィールド(名前は問わず最初の1つ)を期限として扱う
-                        due = due or fv.get("date")
+                    elif "date" in fv and fname == self._date_field_name:
+                        # 書き込み先と同じフィールドだけを期限として読む
+                        # (「着手」など他のDATEフィールドは無視)
+                        due = fv.get("date")
                 items.append({
                     "item_id": node["id"],
                     "number": content.get("number"),  # Draftはnull

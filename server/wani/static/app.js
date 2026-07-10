@@ -54,7 +54,10 @@ async function apiCreateTask(title) {
   return body.task;
 }
 
+let editing = false; // インライン編集中は自動refreshでDOMを壊さない
+
 async function refresh() {
+  if (editing) return;
   try {
     const res = await fetch("api/state");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -325,6 +328,7 @@ const core = {
   refresh,
   showTaskSheet,
   moveTask: apiMove,
+  setEditing: (v) => { editing = v; },
   showError,
   openPlanning,
   isToday, todayApproved, allActive,

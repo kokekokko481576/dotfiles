@@ -113,8 +113,12 @@ export function initClassic(core) {
     // 確定はchangeイベント、キャンセルはエディタ外タップ。
     // (blurで消す方式はスマホの日付ピッカーが開いた瞬間にblurが飛び、
     //  選択を確定する前にエディタが破棄されてしまうためやめた)
+    core.setEditing(true);
     let committed = false;
-    const cleanup = () => document.removeEventListener("pointerdown", onOutside, true);
+    const cleanup = () => {
+      document.removeEventListener("pointerdown", onOutside, true);
+      core.setEditing(false);
+    };
     const post = async (due) => {
       if (committed) return;
       committed = true;
