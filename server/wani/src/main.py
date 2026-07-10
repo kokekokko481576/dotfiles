@@ -96,6 +96,10 @@ class TaskMove(BaseModel):
     after_item_id: str | None = None  # Noneなら先頭へ
 
 
+class TaskDue(BaseModel):
+    due: str | None = None  # "YYYY-MM-DD" | null(クリア)
+
+
 # 進捗の分母から外すStatus。waitingは他人待ち、wish listは後回しBOX(ユーザー命名)で
 # どちらも「今日の頑張り」の対象ではないため、ワニ博士の進捗バーには含めない。
 EXCLUDED_FROM_PROGRESS = {"waiting", "wish list"}
@@ -262,6 +266,24 @@ def move_task(item_id: str, body: TaskMove):
         result = source.move_item(item_id, body.after_item_id)
     except Exception as e:
         log.exception("並び替えに失敗")
+        raise HTTPException(status_code=502, detail=str(e))
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/tasks/{item_id}/due")
+def update_due(item_id: str, body: TaskDue):
+    """期限(Projectの日付フィールド)を設定・クリアする。"""
+    if body.due is not None:
+        try:
+            datetime.strptime(body.due, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="dueはYYYY-MM-DD形式で指定してください")
+    try:
+        result = source.update_due(item_id, body.due)
+    except Exception as e:
+        log.exception("期限の更新に失敗")
         raise HTTPException(status_code=502, detail=str(e))
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result["error"])

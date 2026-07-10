@@ -228,33 +228,24 @@ export function initAdventure(core) {
   let knownEventKeys = new Set();
 
   const short = (s, n = 14) => (s.length > n ? s.slice(0, n) + "…" : s);
-  const dismissKey = (ev) => `wani_ev_${(ev.start || "").slice(0, 10)}_${ev.title}_${ev.start}`;
 
-  // ---- 予定 → 割り込み判定 ----
+  // ---- 予定 → 飛来判定(開始時刻に現れ、終了時刻に自動で消える) ----
   function activeEvents() {
     if (!state?.events) return [];
     const now = new Date();
     return state.events.filter((ev) => {
       if (ev.all_day || !ev.start) return false;
-      if (localStorage.getItem(dismissKey(ev))) return false;
       const start = new Date(ev.start);
       const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 3600_000);
       return start <= now && now <= end;
     });
   }
 
-  function upcomingEvents() {
-    if (!state?.events) return [];
-    const now = new Date();
-    return state.events.filter((ev) =>
-      !ev.all_day && ev.start && new Date(ev.start) > now);
-  }
-
-  // ---- タスク+割込予定 → パペット隊列 ----
+  // ---- タスク+滞空中の予定 → パペット ----
   function rebuildActors() {
     const evs = activeEvents().map((ev) => ({
       kind: "event", ev, type: "clock",
-      key: dismissKey(ev), seed: hashStr(ev.title),
+      key: `ev_${ev.title}_${ev.start}`, seed: hashStr(ev.title),
     }));
     // 敵の順番 = Projectの並び順(手動で変更可能)。作戦会議承認後は今日のタスクのみ
     const tasks = state.tasks
@@ -303,8 +294,10 @@ export function initAdventure(core) {
       return "あたりは しずかだ。＋でタスクを よびだせる。";
     }
     if (a.kind === "event") {
-      const time = new Date(a.ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-      return `${time}『${short(a.ev.title, 16)}』のじかん！おわったら タップして「すんだ！」`;
+      const end = a.ev.end
+        ? new Date(a.ev.end).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+        : null;
+      return `いまは『${short(a.ev.title, 16)}』のじかん！${end ? `(${end}まで)` : ""}`;
     }
     const st = statusOf(a.task);
     if (st === "in progress") return `${ENEMY_NAMES[a.type]}と たたかっている！(${short(a.task.title)})`;
@@ -521,7 +514,7 @@ export function initAdventure(core) {
       } else {
         const i = taskIndex++;
         const target = BATTLE_X + i * ENEMY_GAP;
-        a.x += (target - a.x) * (REDUCED ? 1 : 0.1);
+        if (!a.dragging) a.x += (target - a.x) * (REDUCED ? 1 : 0.1);
         if (a.dying) {
           a.sink = (a.sink || 0) + 5;   // 討伐: 棒ごと下に引っ込む
           if (a.sink > 130) { a.gone = true; continue; }
@@ -656,85 +649,93 @@ export function initAdventure(core) {
     if (visible && !REDUCED) raf = requestAnimationFrame(frame);
   }
 
-  canvas.addEventListener("click", (ev) => {
+  // ---- タップ=シート / ドラッグ=直接並び替え ----
+  let pointer = null;
+
+  function canvasPos(ev) {
     const rect = canvas.getBoundingClientRect();
-    const x = (ev.clientX - rect.left) * (CW / rect.width);
-    const y = (ev.clientY - rect.top) * (CH / rect.height);
+    return {
+      x: (ev.clientX - rect.left) * (CW / rect.width),
+      y: (ev.clientY - rect.top) * (CH / rect.height),
+    };
+  }
+
+  function actorAt(x, y) {
     for (const a of actors) {
       const hb = a.hitbox;
       if (hb && x >= hb.x - 8 && x <= hb.x + hb.w + 8 && y >= hb.y - 22 && y <= hb.y + hb.h + 8) {
-        if (a.kind === "task") core.showTaskSheet(a.task);
-        else core.showEventSheet(a.ev, () => {
-          localStorage.setItem(a.key, "1");
-          say("よていを こなした！えらい！");
-          rebuildActors();
-        });
-        return;
+        return a;
       }
     }
-    if (x < WANI_X + 60) say(defaultMsg());
+    return null;
+  }
+
+  canvas.addEventListener("pointerdown", (ev) => {
+    const { x, y } = canvasPos(ev);
+    const a = actorAt(x, y);
+    if (a && a.kind === "task" && !a.dying) {
+      pointer = { actor: a, startX: x, moved: false };
+      canvas.setPointerCapture?.(ev.pointerId);
+    } else {
+      pointer = { actor: a, startX: x, moved: false, tapOnly: true };
+    }
   });
 
-  // ---- 脇道(待ち/後回し/きょうのよてい) ----
-  function renderSide() {
-    const side = $("adv-side");
-    side.replaceChildren();
-    const waiting = state.tasks.filter((tk) => statusOf(tk) === "waiting");
-    const wish = state.tasks.filter((tk) => statusOf(tk) === "wish list");
-    const upcoming = upcomingEvents();
-    // 承認後: 今日のリストに入っていないアクティブなタスク(引きずり出し用)
-    const others = core.todayApproved()
-      ? core.allActive().filter((tk) => !core.isToday(tk))
-      : [];
-    const boxes = [
-      ["🗃 そのほかのタスク ", others.map((tk) => ({
-        label: (tk.number ? `#${tk.number} ` : "") + short(tk.title, 22),
-        onClick: () => core.showTaskSheet(tk),
-      }))],
-      ["📅 きょうのよてい ", upcoming.map((ev) => ({
-        label: `${ev.all_day ? "終日" : new Date(ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} ${ev.title}`,
-        onClick: null,
-      }))],
-      ["⛺ 待機 ", waiting.map((tk) => ({
-        label: (tk.number ? `#${tk.number} ` : "") + short(tk.title, 22),
-        onClick: () => core.showTaskSheet(tk),
-      }))],
-      ["🧰 後回し ", wish.map((tk) => ({
-        label: (tk.number ? `#${tk.number} ` : "") + short(tk.title, 22),
-        onClick: () => core.showTaskSheet(tk),
-      }))],
-    ];
-    for (const [label, items] of boxes) {
-      if (!items.length) continue;
-      const details = document.createElement("details");
-      details.className = "adv-side-box";
-      const summary = document.createElement("summary");
-      summary.textContent = `${label}${items.length}件`;
-      details.appendChild(summary);
-      for (const item of items) {
-        const el = document.createElement(item.onClick ? "button" : "div");
-        if (item.onClick) { el.type = "button"; el.onclick = item.onClick; }
-        el.className = "adv-side-item";
-        el.textContent = item.label;
-        details.appendChild(el);
+  canvas.addEventListener("pointermove", (ev) => {
+    if (!pointer || pointer.tapOnly) return;
+    const { x } = canvasPos(ev);
+    if (!pointer.moved && Math.abs(x - pointer.startX) < 12) return;
+    pointer.moved = true;
+    const a = pointer.actor;
+    a.dragging = true;
+    a.x = x;
+    // ドラッグ中の並びをx座標で組み直す(他の敵はイージングで席を詰める)
+    const events = actors.filter((v) => v.flying);
+    const ground = actors.filter((v) => !v.flying).sort((p, q) => p.x - q.x);
+    actors = [...events, ...ground];
+  });
+
+  async function endDrag() {
+    const a = pointer?.actor;
+    const moved = pointer?.moved;
+    pointer = null;
+    if (!a) return;
+    if (moved) {
+      a.dragging = false;
+      const ground = actors.filter((v) => !v.flying);
+      const idx = ground.indexOf(a);
+      const afterId = idx > 0 ? ground[idx - 1].task.item_id : null;
+      try {
+        await core.moveTask(a.task, afterId);
+        say("じんけいを いれかえた！");
+        await core.refresh();
+      } catch (e) {
+        core.showError(`並び替えに失敗しました: ${e.message}`);
+        await core.refresh();
       }
-      side.appendChild(details);
     }
-    // 作戦会議のやりなおし
-    const plan = document.createElement("button");
-    plan.type = "button";
-    plan.className = "adv-side-item";
-    plan.textContent = core.todayApproved()
-      ? "📋 きょうのリストを見直す(作戦会議)" : "📋 作戦会議をひらく";
-    plan.onclick = () => core.openPlanning();
-    side.appendChild(plan);
   }
+
+  canvas.addEventListener("pointerup", (ev) => {
+    if (pointer && !pointer.moved) {
+      const a = pointer.actor;
+      const { x } = canvasPos(ev);
+      pointer = null;
+      if (a?.kind === "task") core.showTaskSheet(a.task);
+      else if (a?.kind === "event") say(defaultMsg());
+      else if (x < WANI_X + 60) say(defaultMsg());
+      return;
+    }
+    endDrag();
+  });
+  canvas.addEventListener("pointercancel", endDrag);
+
+  $("adv-plan").onclick = () => core.openPlanning();
 
   return {
     update(s) {
       state = s;
       rebuildActors();
-      renderSide();
       drawHud();
       if (REDUCED) { drawScene(); drawWani(); if (!state.mood.sleeping) drawActors(); }
       if (Date.now() > msgUntil) $("adv-msg").textContent = defaultMsg();

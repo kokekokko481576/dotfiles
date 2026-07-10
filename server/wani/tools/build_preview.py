@@ -92,6 +92,13 @@ window.fetch = async (url, opts = {}) => {
     MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
     return respond({ok: true, task: {...task}, event, mood: {...MOCK_MOOD}});
   }
+  if ((m = url.match(/api\\/tasks\\/([^/]+)\\/due/))) {
+    const id = decodeURIComponent(m[1]);
+    const task = MOCK_TASKS.find(t => t.item_id === id);
+    if (!task) return respond({detail: "not found"}, 400);
+    task.due = JSON.parse(opts.body).due;
+    return respond({ok: true, task: {...task}});
+  }
   if ((m = url.match(/api\\/tasks\\/([^/]+)\\/move/))) {
     const id = decodeURIComponent(m[1]);
     const {after_item_id} = JSON.parse(opts.body);

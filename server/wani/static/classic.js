@@ -76,12 +76,61 @@ export function initClassic(core) {
   }
 
   function dueChip(t) {
-    if (!t.due) return null;
     const chip = document.createElement("span");
     const today = new Date().toISOString().slice(0, 10);
-    chip.className = "row-due" + (t.due < today ? " overdue" : t.due === today ? " today" : "");
-    chip.textContent = t.due.slice(5).replace("-", "/");
+    if (t.due) {
+      chip.className = "row-due" + (t.due < today ? " overdue" : t.due === today ? " today" : "");
+      chip.textContent = t.due.slice(5).replace("-", "/");
+    } else {
+      chip.className = "row-due empty";
+      chip.textContent = "期限";
+    }
+    chip.title = "タップで期限を編集";
+    chip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDueEditor(chip, t);
+    });
     return chip;
+  }
+
+  // 期限チップのその場編集(date input + クリア)。GitHubの日付フィールドを書き換える
+  function openDueEditor(anchor, t) {
+    const wrap = document.createElement("span");
+    wrap.className = "row-due-edit";
+    const input = document.createElement("input");
+    input.type = "date";
+    input.value = t.due || "";
+    wrap.appendChild(input);
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.textContent = "✕";
+    clear.title = "期限をクリア";
+    clear.hidden = !t.due;
+    wrap.appendChild(clear);
+    wrap.addEventListener("click", (e) => e.stopPropagation());
+    anchor.replaceWith(wrap);
+
+    const post = async (due) => {
+      try {
+        const res = await fetch(`api/tasks/${encodeURIComponent(t.item_id)}/due`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ due }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+      } catch (e) {
+        core.showError(`期限の更新に失敗しました: ${e.message}`);
+      }
+      await core.refresh();
+    };
+    input.onchange = () => { if (input.value) post(input.value); };
+    clear.onclick = () => post(null);
+    input.addEventListener("blur", () => {
+      // 少し待ってから再描画(クリアボタンのclickを先に処理させる)
+      setTimeout(() => { if (document.body.contains(wrap)) core.refresh(); }, 250);
+    });
+    input.focus();
+    input.showPicker?.();
   }
 
   // ---- 行 ----

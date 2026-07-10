@@ -56,6 +56,7 @@ query($login: String!, $number: Int!, $after: String) {
       fields(first: 30) {
         nodes {
           ... on ProjectV2SingleSelectField { id name options { id name } }
+          ... on ProjectV2Field { id name dataType }
         }
       }
       items(first: 50, after: $after) {
@@ -114,6 +115,27 @@ mutation($projectId: ID!, $title: String!) {
 }
 """
 
+# 日付フィールド(期限)の設定・クリア
+_UPDATE_DATE_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $date: Date!) {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: $projectId, itemId: $itemId, fieldId: $fieldId, value: { date: $date }
+  }) {
+    projectV2Item { id }
+  }
+}
+"""
+
+_CLEAR_FIELD_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
+  clearProjectV2ItemFieldValue(input: {
+    projectId: $projectId, itemId: $itemId, fieldId: $fieldId
+  }) {
+    projectV2Item { id }
+  }
+}
+"""
+
 # Project内の手動並び順を変更する(afterId=nullで先頭へ)。
 # 冒険モードの敵の隊列 = Projectの並び順で、GitHub側のボードにも反映される
 _MOVE_ITEM_MUTATION = """
@@ -138,6 +160,7 @@ class TaskSource:
         self._project_id = None
         self._status_field_id = None
         self._status_options: dict[str, str] = {}
+        self._date_field_id = None  # 最初のDATEフィールド(期限扱い)
         if not self.mock:
             self._session = requests.Session()
             self._session.headers.update({
@@ -231,6 +254,31 @@ class TaskSource:
                 self._cache_at = 0.0
         return {"ok": True}
 
+    def update_due(self, item_id: str, due: str | None) -> dict:
+        """期限(日付フィールド)を設定またはクリアする。"""
+        tasks = self.list_tasks()
+        task = next((t for t in tasks if t["item_id"] == item_id), None)
+        if task is None:
+            return {"ok": False, "error": f"item_id '{item_id}' が見つかりません"}
+
+        if self.mock:
+            task["due"] = due
+            store.save_mock_tasks(tasks)
+            return {"ok": True, "task": task}
+
+        if self._date_field_id is None:
+            return {"ok": False,
+                    "error": "Projectに日付フィールドがありません(ボードで追加してください)"}
+        variables = {"projectId": self._project_id, "itemId": item_id,
+                     "fieldId": self._date_field_id}
+        if due:
+            self._graphql(_UPDATE_DATE_MUTATION, {**variables, "date": due})
+        else:
+            self._graphql(_CLEAR_FIELD_MUTATION, variables)
+        with self._lock:
+            self._cache_at = 0.0
+        return {"ok": True, "task": dict(task, due=due)}
+
     def create_task(self, title: str) -> dict:
         """Draft itemとしてタスクを追加し、作成されたtaskを返す。"""
         title = title.strip()
@@ -317,9 +365,13 @@ class TaskSource:
                     f"Project #{PROJECT_NUMBER} が {PROJECT_OWNER} 配下に見つかりません")
             self._project_id = project["id"]
             for field in project["fields"]["nodes"]:
-                if field and field.get("name") == STATUS_FIELD_NAME:
+                if not field:
+                    continue
+                if field.get("name") == STATUS_FIELD_NAME and "options" in field:
                     self._status_field_id = field["id"]
                     self._status_options = {o["name"]: o["id"] for o in field["options"]}
+                elif field.get("dataType") == "DATE" and self._date_field_id is None:
+                    self._date_field_id = field["id"]
 
             for node in project["items"]["nodes"]:
                 content = node.get("content") or {}

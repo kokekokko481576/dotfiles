@@ -287,23 +287,7 @@ function showTaskSheet(task) {
   $("sheet-backdrop").hidden = false;
 }
 
-// ---- 予定(カレンダー)シート: ぼうけんモードの割り込み敵用 ----
-function showEventSheet(ev, onDone) {
-  $("sheet-title").textContent = `📅 ${ev.title}`;
-  const fmt = (iso) => new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-  $("sheet-meta").textContent =
-    `Googleカレンダーの予定 ${fmt(ev.start)}${ev.end ? "〜" + fmt(ev.end) : ""}`;
-  $("sheet-order").replaceChildren();
-  const actions = $("sheet-actions");
-  actions.replaceChildren();
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "status-btn active";
-  btn.textContent = "すんだ！";
-  btn.onclick = () => { closeSheet(); onDone?.(); };
-  actions.appendChild(btn);
-  $("sheet-backdrop").hidden = false;
-}
+// (予定はタップで情報表示のみ。終了時刻になれば自動で飛び去るため操作は不要)
 function closeSheet() { $("sheet-backdrop").hidden = true; }
 $("sheet-close").onclick = closeSheet;
 $("sheet-backdrop").onclick = (e) => { if (e.target === $("sheet-backdrop")) closeSheet(); };
@@ -340,7 +324,7 @@ const core = {
   updateStatus: apiUpdateStatus,
   refresh,
   showTaskSheet,
-  showEventSheet,
+  moveTask: apiMove,
   showError,
   openPlanning,
   isToday, todayApproved, allActive,

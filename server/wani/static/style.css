@@ -142,6 +142,18 @@ body {
 }
 .row-due.today { color: #b8860b; border-color: #d8b24a; }
 .row-due.overdue { color: #c0392b; border-color: #d98b82; }
+.row-due.empty { opacity: .5; border-style: dashed; }
+.row-due-edit { display: inline-flex; align-items: center; gap: 4px; }
+.row-due-edit input {
+  font-size: 11px; padding: 2px 4px;
+  border: 1.5px solid var(--green); border-radius: 6px;
+  background: var(--panel); color: var(--ink);
+}
+.row-due-edit button {
+  border: 1.5px solid var(--line); border-radius: 6px;
+  background: var(--chip); color: var(--sub);
+  font-size: 10px; padding: 2px 6px;
+}
 .row-status {
   font-size: 10px; font-weight: 700;
   border-radius: 6px;
@@ -308,7 +320,14 @@ body {
   aspect-ratio: 640 / 220;
   border-radius: 10px;
   border: 1.5px solid var(--line);
-  touch-action: manipulation;
+  /* 敵をドラッグで並び替えるため、キャンバス上のスクロールは無効化 */
+  touch-action: none;
+}
+.adv-plan-btn {
+  font-size: 11px; font-weight: 700;
+  border: 1.5px solid var(--line); border-radius: 8px;
+  background: var(--chip); color: var(--sub);
+  padding: 4px 10px;
 }
 /* 横向きスマホではキャンバスを画面いっぱいに使う */
 @media (orientation: landscape) and (max-height: 500px) {
