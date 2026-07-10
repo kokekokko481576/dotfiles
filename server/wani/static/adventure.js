@@ -68,11 +68,10 @@ function hashStr(s) {
 }
 
 // ================================================================
-// ワニ博士の一枚絵(ドット絵ではない滑らかなカートゥーン)。
+// ワニ博士は右斜め向きのドット絵(side_*スプライト、リスト表示と同じキャラ)。
 // /assets/wani.png をユーザーが置いていればそちらを優先する
 // (公式画像は再配布できないためリポジトリには含めない。guide/13参照)。
 // ================================================================
-const WANI_W = 130, WANI_H = 150;
 let customWani = null;
 {
   const img = new Image();
@@ -80,135 +79,10 @@ let customWani = null;
   img.src = "assets/wani.png";
 }
 
-function drawWaniCutout(g, face) {
-  const OUT = "#143d20", BODY = "#359e58", BELLY = "#f7f4e6",
-        EYE = "#ffd22d", PUPIL = "#181818", MOUTH = "#e85888";
-  g.lineWidth = 4;
-  g.strokeStyle = OUT;
-  g.lineJoin = "round";
-
-  // 尻尾(左後ろにちょこん)
-  g.fillStyle = BODY;
-  g.beginPath();
-  g.moveTo(30, 128);
-  g.quadraticCurveTo(2, 132, 8, 112);
-  g.quadraticCurveTo(26, 104, 42, 116);
-  g.closePath(); g.fill(); g.stroke();
-
-  // 脚
-  for (const lx of [46, 76]) {
-    g.beginPath();
-    g.roundRect(lx, 122, 22, 24, 7);
-    g.fillStyle = BODY; g.fill(); g.stroke();
-  }
-  // 体
-  g.beginPath();
-  g.ellipse(66, 100, 38, 34, 0, 0, Math.PI * 2);
-  g.fillStyle = BODY; g.fill(); g.stroke();
-  // 腹(横線入り)
-  g.beginPath();
-  g.ellipse(66, 106, 24, 24, 0, 0, Math.PI * 2);
-  g.fillStyle = BELLY; g.fill();
-  g.save();
-  g.clip();
-  g.lineWidth = 2.5;
-  for (const yy of [98, 108, 118]) {
-    g.beginPath(); g.moveTo(44, yy); g.lineTo(88, yy); g.stroke();
-  }
-  g.restore();
-  g.lineWidth = 4;
-
-  // 腕
-  for (const [ax, rot] of [[26, 0.5], [104, -0.5]]) {
-    g.save();
-    g.translate(ax, 92); g.rotate(rot);
-    g.beginPath(); g.roundRect(-8, -6, 16, 26, 8);
-    g.fillStyle = BODY; g.fill(); g.stroke();
-    g.restore();
-  }
-
-  // 頭(鼻先が右へ長い)
-  g.beginPath();
-  g.moveTo(20, 62);
-  g.quadraticCurveTo(18, 30, 52, 26);
-  g.quadraticCurveTo(88, 22, 106, 38);
-  g.quadraticCurveTo(126, 52, 122, 62);
-  g.quadraticCurveTo(118, 76, 92, 78);
-  g.quadraticCurveTo(50, 82, 30, 76);
-  g.quadraticCurveTo(20, 72, 20, 62);
-  g.closePath();
-  g.fillStyle = BODY; g.fill(); g.stroke();
-
-  // 鼻の穴
-  g.fillStyle = OUT;
-  g.beginPath(); g.ellipse(108, 44, 2.5, 2, 0, 0, Math.PI * 2); g.fill();
-  g.beginPath(); g.ellipse(116, 50, 2.5, 2, 0, 0, Math.PI * 2); g.fill();
-
-  // 口(表情で切替)
-  if (face === "happy" || face === "excellent") {
-    g.beginPath();
-    g.moveTo(38, 66);
-    g.quadraticCurveTo(80, 88, 118, 60);
-    g.quadraticCurveTo(102, 84, 66, 82);
-    g.quadraticCurveTo(46, 80, 38, 66);
-    g.closePath();
-    g.fillStyle = MOUTH; g.fill();
-    g.lineWidth = 3; g.stroke();
-    // 歯
-    g.fillStyle = "#fff";
-    for (const [tx, ty] of [[52, 71], [72, 77], [94, 74]]) {
-      g.beginPath();
-      g.moveTo(tx, ty); g.lineTo(tx + 9, ty - 2); g.lineTo(tx + 5, ty + 6);
-      g.closePath(); g.fill();
-    }
-    g.lineWidth = 4;
-  } else if (face === "tired") {
-    g.beginPath();
-    g.moveTo(44, 72); g.quadraticCurveTo(78, 64, 112, 60);
-    g.lineWidth = 3; g.stroke(); g.lineWidth = 4;
-  } else {
-    g.beginPath();
-    g.moveTo(40, 66); g.quadraticCurveTo(80, 78, 116, 56);
-    g.lineWidth = 3; g.stroke(); g.lineWidth = 4;
-  }
-
-  // 目(頭の上のバンプ)
-  for (const ex of [44, 78]) {
-    g.beginPath();
-    g.ellipse(ex, 24, 15, 16, 0, 0, Math.PI * 2);
-    g.fillStyle = BODY; g.fill(); g.stroke();
-    if (face === "sleeping") {
-      g.beginPath();
-      g.moveTo(ex - 9, 26); g.quadraticCurveTo(ex, 32, ex + 9, 26);
-      g.lineWidth = 3; g.stroke(); g.lineWidth = 4;
-    } else {
-      g.beginPath();
-      g.ellipse(ex, 25, 10, 11, 0, 0, Math.PI * 2);
-      g.fillStyle = EYE; g.fill();
-      g.lineWidth = 2.5; g.stroke(); g.lineWidth = 4;
-      const lid = face === "tired" ? 6 : 0;
-      g.beginPath();
-      g.ellipse(ex + 2, 26 + lid / 2, 4.5, 5.5 - lid * 0.3, 0, 0, Math.PI * 2);
-      g.fillStyle = PUPIL; g.fill();
-      if (face === "tired") {
-        g.beginPath();
-        g.moveTo(ex - 11, 20); g.lineTo(ex + 11, 20);
-        g.lineWidth = 5; g.strokeStyle = "#2c7a44"; g.stroke();
-        g.strokeStyle = "#143d20"; g.lineWidth = 4;
-      }
-    }
-  }
-}
-
-const waniCutouts = new Map();
-function waniCutout(face) {
-  if (customWani) return customWani;
-  if (waniCutouts.has(face)) return waniCutouts.get(face);
-  const c = document.createElement("canvas");
-  c.width = WANI_W; c.height = WANI_H;
-  drawWaniCutout(c.getContext("2d"), face);
-  waniCutouts.set(face, c);
-  return c;
+function waniSideSheet(face, frameIdx) {
+  const frames = SPRITES[`side_${face}`] || SPRITES.side_normal;
+  const i = frameIdx % frames.length;
+  return sheet(frames[i], `ws:${face}:${i}`);
 }
 
 export function initAdventure(core) {
@@ -462,9 +336,17 @@ export function initAdventure(core) {
       }
     }
     const rock = REDUCED ? 0 : Math.sin(t / 16) * 0.045;
-    const img = waniCutout(face);
-    const scale = 0.78;
-    drawPuppet(img, WANI_X, GROUND_Y, WANI_W * scale * (img === customWani ? (img.width / img.height) * (WANI_H / WANI_W) : 1), WANI_H * scale, { rock, flipX });
+    if (customWani) {
+      // ユーザー配置の画像(assets/wani.png)を優先。高さ110px基準でアスペクト維持
+      const h = 110;
+      const w = h * (customWani.width / customWani.height);
+      drawPuppet(customWani, WANI_X, GROUND_Y, w, h, { rock, flipX });
+    } else {
+      const img = waniSideSheet(face, (t / 18) | 0);
+      const scale = 3.4;
+      drawPuppet(img, WANI_X, GROUND_Y, img.width * scale, img.height * scale,
+        { rock, flipX, pixel: true });
+    }
 
     if (sleeping && !REDUCED) {
       const fx = WANI_X + 90, fy = GROUND_Y - 2;

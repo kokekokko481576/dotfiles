@@ -258,12 +258,166 @@ def frame_sleep_2():
     return g
 
 
+# ================================================================
+# 右斜め手前向きのワニ博士(ぼうけんモード用、32x32)。
+# 正面版と同じデザイン言語: 頭上の黄色い目(瞳は進行方向=右寄り)、
+# 右へ伸びる鼻先、クリーム腹+横線、白い牙・爪、左後ろに尻尾
+# ================================================================
+SIDE_BASE = [
+    "",
+    ".........KKKK....KKKK",
+    "........KYYYYK..KYYYYK",
+    "........KYYPPK..KYYPPK",
+    "........KYYPPK..KYYPPK",
+    "........KYYYYK..KYYYYK",
+    "......KGGGGGGGGGGGGGGGK",
+    ".....KGGGGGGGGGGGGGGGGGKK",
+    "....KGGGGGGGGGGGGGGGGGGGKKK",
+    "...KGGGGGGGGGGGGGGGGGGGGGGKDK",
+    "...KGGGGGGGGGGGGGGGGGGGGGGGGGK",
+    "...KGGGGGGKKKKKKKKKKKKKKKKKKKK",
+    "...KGGGGGGGWWGGGWWGGGWWGGGGGK",
+    "....KGGGGGGGGGGGGGGGGGGGGGGK",
+    ".....KGGGGGGGGGGGGGGGGGGGK",
+    "......KGGGGGGGGGGGGGGGGK",
+    ".....KGGGGGGGGGGGGGGGK",
+    "....KGGGGGGGLLLLLLLGGK",
+    "...KGGGGGGGGLLLLLLLLGK",
+    ".KKGGGGGGGGGLKKKKKKLGK",
+    "KGGGGGGGGGGGLLLLLLLLGK",
+    "KGGGGGGGGGGGLKKKKKKLGK",
+    ".KKGGGGGGGGGLLLLLLLLGK",
+    "...KKGGGGGGGGLLLLLLGGK",
+    ".....KGGGGGGGGGGGGGGK",
+    "......KGGGGGGGGGGGGK",
+    "......KGGGK...KGGGK",
+    "......KGGGK...KGGGK",
+    "......KGGWWK..KGGWWK",
+    "......KKKKKK..KKKKKK",
+]
+
+
+def side_normal_1():
+    return grid(SIDE_BASE)
+
+
+def side_normal_2():
+    g = grid(SIDE_BASE)
+    return [list("." * W)] + g[:-1]
+
+
+def _side_close_eyes(g):
+    put(g, 2, 9, "GGGG")
+    put(g, 2, 17, "GGGG")
+    put(g, 3, 9, "GGGG")
+    put(g, 3, 17, "GGGG")
+    put(g, 4, 9, "KKKK")
+    put(g, 4, 17, "KKKK")
+    put(g, 5, 9, "GGGG")
+    put(g, 5, 17, "GGGG")
+    return g
+
+
+def side_blink():
+    return _side_close_eyes(grid(SIDE_BASE))
+
+
+def _side_open_mouth(g):
+    # 口をあけたピンクの笑顔(上あごに白い歯)
+    put(g, 11, 10, "KKKKKKKKKKKKKKKKKKKK")
+    put(g, 12, 9, "KWWRRRRWWRRRRWWRRRKK")
+    put(g, 13, 9, "KKRRRRRRRRRRRRRRRKK")
+    put(g, 14, 10, "KKKKKKKKKKKKKKKK")
+    return g
+
+
+def side_happy_1():
+    g = grid(SIDE_BASE)
+    _side_open_mouth(g)
+    put(g, 8, 6, "CC")
+    return g
+
+
+def side_happy_2():
+    g = side_happy_1()
+    return [list("." * W)] + g[:-1]
+
+
+def side_excellent_1():
+    g = side_happy_1()
+    # 後ろ腕を頭の横に突き上げる(ガッツポーズ)
+    put(g, 1, 3, "KWWK")
+    put(g, 2, 3, "KGGK")
+    put(g, 3, 3, "KGGK")
+    put(g, 4, 4, "KGK")
+    put(g, 5, 5, "KGK")
+    # キラキラ
+    put(g, 0, 0, "*")
+    put(g, 4, 30, "*")
+    put(g, 8, 1, "*")
+    return g
+
+
+def side_excellent_2():
+    g = side_excellent_1()
+    put(g, 0, 0, ".")
+    put(g, 4, 30, ".")
+    put(g, 8, 1, ".")
+    put(g, 0, 8, "*")
+    put(g, 6, 30, "*")
+    put(g, 10, 0, "*")
+    return g
+
+
+def side_tired_1():
+    g = grid(SIDE_BASE)
+    # 半目
+    put(g, 2, 9, "GGGG")
+    put(g, 2, 17, "GGGG")
+    put(g, 3, 9, "KKKK")
+    put(g, 3, 17, "KKKK")
+    # 汗
+    put(g, 5, 3, "Z")
+    put(g, 7, 2, "Z")
+    return g
+
+
+def side_tired_2():
+    g = side_tired_1()
+    put(g, 5, 3, ".")
+    put(g, 7, 2, ".")
+    put(g, 6, 3, "Z")
+    put(g, 8, 2, "Z")
+    return g
+
+
+def side_sleep_1():
+    g = _side_close_eyes(grid(SIDE_BASE))
+    put(g, 0, 4, "Z")
+    put(g, 2, 2, "ZZ")
+    put(g, 5, 1, "Z")
+    return g
+
+
+def side_sleep_2():
+    g = _side_close_eyes(grid(SIDE_BASE))
+    put(g, 0, 2, "ZZ")
+    put(g, 3, 1, "Z")
+    put(g, 5, 4, "ZZ")
+    return g
+
+
 SPRITES = {
     "normal": [frame_normal_1, frame_normal_2, frame_normal_1, frame_blink],
     "happy": [frame_happy_1, frame_happy_2],
     "excellent": [frame_excellent_1, frame_excellent_2],
     "tired": [frame_tired_1, frame_tired_2],
     "sleeping": [frame_sleep_1, frame_sleep_2],
+    "side_normal": [side_normal_1, side_normal_2, side_normal_1, side_blink],
+    "side_happy": [side_happy_1, side_happy_2],
+    "side_excellent": [side_excellent_1, side_excellent_2],
+    "side_tired": [side_tired_1, side_tired_2],
+    "side_sleeping": [side_sleep_1, side_sleep_2],
 }
 
 # ================================================================

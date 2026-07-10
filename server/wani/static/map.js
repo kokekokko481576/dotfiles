@@ -11,16 +11,18 @@ export function initMap(core) {
   const { statusOf, statusJa, EXCLUDED } = core;
   let state = null;
 
-  // ワニ博士の顔だけ切り出したdata URL(現在地マーカー用)
+  // ワニ博士の顔(目〜口)だけを切り出したdata URL。すごろくのコマとして
+  // 現在地のマスにそのまま乗せる
+  const FACE = { x0: 3, y0: 1, w: 26, h: 18 };
   let waniIcon = null;
   function makeWaniIcon() {
     const rows = SPRITES.normal[0];
     const c = document.createElement("canvas");
-    c.width = 32; c.height = 22;
+    c.width = FACE.w; c.height = FACE.h;
     const g = c.getContext("2d");
-    for (let y = 0; y < 22; y++) {
-      for (let x = 0; x < 32; x++) {
-        const col = PALETTE[rows[y]?.[x]];
+    for (let y = 0; y < FACE.h; y++) {
+      for (let x = 0; x < FACE.w; x++) {
+        const col = PALETTE[rows[y + FACE.y0]?.[x + FACE.x0]];
         if (!col) continue;
         g.fillStyle = col;
         g.fillRect(x, y, 1, 1);
@@ -89,15 +91,19 @@ export function initMap(core) {
       g.setAttribute("role", "button");
       g.setAttribute("tabindex", "0");
 
+      const isCurrent = i === current && st !== "done";
+
       const circle = document.createElementNS(svg.namespaceURI, "circle");
       circle.setAttribute("r", NODE_R);
       g.appendChild(circle);
 
-      const label = document.createElementNS(svg.namespaceURI, "text");
-      label.setAttribute("class", "map-node-num");
-      label.setAttribute("dy", "4");
-      label.textContent = st === "done" ? "✓" : (t.number ?? "メ");
-      g.appendChild(label);
+      if (!isCurrent) {
+        const label = document.createElementNS(svg.namespaceURI, "text");
+        label.setAttribute("class", "map-node-num");
+        label.setAttribute("dy", "4");
+        label.textContent = st === "done" ? "✓" : (t.number ?? "メ");
+        g.appendChild(label);
+      }
 
       const title = document.createElementNS(svg.namespaceURI, "text");
       title.setAttribute("class", "map-node-title");
@@ -112,13 +118,16 @@ export function initMap(core) {
         flag.textContent = "🚩";
         g.appendChild(flag);
       }
-      if (i === current && st !== "done") {
+      if (isCurrent) {
+        // 現在地のマスはワニ博士の顔で埋める(すごろくのコマ)
+        const w = NODE_R * 2.5;
+        const h = w * (FACE.h / FACE.w);
         const img = document.createElementNS(svg.namespaceURI, "image");
         img.setAttribute("href", waniIcon);
-        img.setAttribute("x", -16);
-        img.setAttribute("y", -NODE_R - 26);
-        img.setAttribute("width", 32);
-        img.setAttribute("height", 22);
+        img.setAttribute("x", -w / 2);
+        img.setAttribute("y", -h / 2 - 2);
+        img.setAttribute("width", w);
+        img.setAttribute("height", h);
         img.style.imageRendering = "pixelated";
         g.appendChild(img);
       }
