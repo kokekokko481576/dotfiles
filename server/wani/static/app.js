@@ -363,6 +363,8 @@ for (const btn of document.querySelectorAll(".mode-tab")) {
 // ---- 起動 ----
 $("refresh").onclick = refresh;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+window.addEventListener("resize", () => modes[currentMode]?.onResize?.());
+window.addEventListener("orientationchange", () => setTimeout(() => modes[currentMode]?.onResize?.(), 200));
 setInterval(refresh, 60_000);
 switchMode(currentMode in modes ? currentMode : "adventure");
 refresh();

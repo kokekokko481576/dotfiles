@@ -317,7 +317,7 @@ body {
 }
 #adv-canvas {
   width: 100%; height: auto;
-  aspect-ratio: 640 / 220;
+  aspect-ratio: 640 / 220; /* 実際の比率はJS(fitCanvas)が画面に合わせて上書きする */
   border-radius: 10px;
   border: 1.5px solid var(--line);
   /* 敵をドラッグで並び替えるため、キャンバス上のスクロールは無効化 */
@@ -329,9 +329,16 @@ body {
   background: var(--chip); color: var(--sub);
   padding: 4px 10px;
 }
-/* 横向きスマホではキャンバスを画面いっぱいに使う */
-@media (orientation: landscape) and (max-height: 500px) {
-  .app { max-width: 760px; }
+/* 横向きスマホ: ヘッダー類を圧縮してキャンバスの縦幅を確保 */
+@media (orientation: landscape) and (max-height: 520px) {
+  .app { max-width: none; padding: 4px 12px 8px; gap: 6px; }
+  .topbar { padding-top: 0; }
+  .topbar h1 { font-size: 15px; letter-spacing: 1px; }
+  .mode-tabs { padding: 2px; }
+  .mode-tab { padding: 4px 0; font-size: 12px; }
+  .adv-card { padding: 6px; gap: 5px; }
+  .adv-msg { min-height: 2em; padding: 6px 10px; font-size: 12px; }
+  .foot { display: none; }
 }
 .adv-msg {
   background: #0a0a14;

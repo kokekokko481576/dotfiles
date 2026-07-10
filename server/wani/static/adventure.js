@@ -10,7 +10,10 @@ import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js";
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const CW = 640, CH = 220;          // 論理キャンバス(横長。スマホは横向き推奨)
+// 論理キャンバス。高さ220は固定、幅は画面の空きスペースの縦横比に合わせて
+// 動的に決める(横向きスマホで下が見切れないように。広い画面ほど視界が広がる)
+let CW = 640;
+const CH = 220;
 const GROUND_Y = 186;              // ステージ床
 const WANI_X = 86;
 const BATTLE_X = 300;
@@ -89,6 +92,21 @@ export function initAdventure(core) {
   const { statusOf, EXCLUDED } = core;
   const canvas = $("adv-canvas");
   const ctx = canvas.getContext("2d");
+
+  // 画面に収まる縦横比に論理解像度を合わせる(メッセージ窓+余白のぶんを差し引く)
+  function fitCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const availW = rect.width || canvas.parentElement.clientWidth;
+    if (!availW) return;
+    const reservedBelow = $("adv-msg").offsetHeight + 46;
+    const availH = Math.max(150, window.innerHeight - rect.top - reservedBelow);
+    const newCW = Math.round(Math.min(1400, Math.max(440, CH * (availW / availH))));
+    if (Math.abs(newCW - CW) > 8) {
+      CW = newCW;
+      canvas.width = CW;
+      canvas.style.aspectRatio = `${CW} / ${CH}`;
+    }
+  }
 
   let state = null;
   let visible = false;
@@ -624,12 +642,18 @@ export function initAdventure(core) {
     },
     show() {
       visible = true;
+      fitCanvas();
       if (!REDUCED) raf = requestAnimationFrame(frame);
       else if (state) { drawScene(); drawWani(); if (!state.mood.sleeping) drawActors(); }
     },
     hide() {
       visible = false;
       cancelAnimationFrame(raf);
+    },
+    onResize() {
+      if (!visible) return;
+      fitCanvas();
+      if (REDUCED && state) { drawScene(); drawWani(); if (!state.mood.sleeping) drawActors(); }
     },
     onTaskEvent,
     onTaskAdded,
