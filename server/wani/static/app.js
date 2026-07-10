@@ -7,7 +7,7 @@ import { initMap } from "./map.js";
 const $ = (id) => document.getElementById(id);
 
 // フッターに出すバージョン。デプロイが端末に届いているかの確認用(更新時に上げる)
-export const APP_VERSION = "v11";
+export const APP_VERSION = "v12";
 
 export const STATUS_JA = {
   "waiting": "待ち", "todo": "未着手", "in progress": "進行中",

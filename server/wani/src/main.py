@@ -35,6 +35,16 @@ log = logging.getLogger(__name__)
 app = FastAPI(title="wani-api")
 source = github_tasks.TaskSource()
 
+
+@app.middleware("http")
+async def no_cache(request, call_next):
+    """Cache-Control無しだとブラウザが推測キャッシュ(Last-Modified経過の10%)で
+    古いUIを使い続け、デプロイが端末に届かない。no-cacheで毎回再検証させる
+    (ETagがあるので実体は304で軽い)。"""
+    response = await call_next(request)
+    response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
 
