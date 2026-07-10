@@ -246,6 +246,8 @@ services:
     environment:
       - TZ=Asia/Tokyo
       - DATA_DIR=/app/data
+      # 朝の作戦会議のレコメンド(Gemini)用。butler-botと同じLiteLLM経由
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - GITHUB_PROJECT_OWNER=${GITHUB_PROJECT_OWNER:-}
       - GITHUB_PROJECT_OWNER_TYPE=${GITHUB_PROJECT_OWNER_TYPE:-user}

@@ -39,7 +39,10 @@ export function initMap(core) {
   function render() {
     waniIcon = waniIcon || makeWaniIcon();
     const root = $("map-root");
-    const active = state.tasks.filter((t) => !EXCLUDED.has(statusOf(t)));
+    // 作戦会議承認後は「今日の道のり」= 今日やるリストだけ
+    // (完了してもリストに残るので、通過済みマスとして表示され続ける)
+    const active = state.tasks.filter((t) =>
+      !EXCLUDED.has(statusOf(t)) && (!core.todayApproved() || core.isToday(t)));
     // 討伐済みを道の先頭(通過済み)に、残りはProjectの手動順
     active.sort((a, b) =>
       (statusOf(a) === "done" ? 0 : 1) - (statusOf(b) === "done" ? 0 : 1));

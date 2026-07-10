@@ -205,9 +205,14 @@ async def wani_list_tasks() -> str:
     p = state["progress"]
     lines.append(f"進捗: {p['done']}/{p['total']}件完了 ({p['percent']}%) "
                  "※waiting/wish listは進捗の分母に含まない")
+    today = state.get("today") or {}
+    today_ids = set(today.get("item_ids") or [])
+    if today.get("approved"):
+        lines.append("⭐=今日やるリスト(作戦会議で承認済み)")
     for t in state["tasks"]:
         ref = f"#{t['number']}" if t.get("number") else "(メモ)"
-        lines.append(f"{ref} [{t.get('status') or 'Todo'}] {t['title']}")
+        star = "⭐" if t["item_id"] in today_ids else ""
+        lines.append(f"{star}{ref} [{t.get('status') or 'Todo'}] {t['title']}")
     if not state["tasks"]:
         lines.append("(タスクなし)")
     return "\n".join(lines)
@@ -273,6 +278,34 @@ async def wani_create_task(title: str) -> str:
     return f"「{body['task']['title']}」をタスクに追加しました(Status: {body['task']['status']})。"
 
 
+async def wani_set_today(numbers: list[int]) -> str:
+    """タスク番号のリストを「今日やるリスト」として設定する。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{WANI_API_URL}/api/state", timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                state = await resp.json()
+            by_number = {t["number"]: t for t in state["tasks"] if t.get("number")}
+            missing = [n for n in numbers if n not in by_number]
+            if missing:
+                return f"（見つからない番号があります: {missing}。list_tasksで確認してください）"
+            item_ids = [by_number[n]["item_id"] for n in numbers]
+            async with session.post(
+                f"{WANI_API_URL}/api/today",
+                json={"item_ids": item_ids},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    return f"（設定に失敗しました: {body.get('detail', resp.status)}）"
+    except Exception as e:
+        log.error(f"wani set_today error: {e}")
+        return f"（設定に失敗しました: {e}）"
+    titles = "、".join(f"#{n} {by_number[n]['title']}" for n in numbers)
+    return f"今日やるリストを設定しました: {titles or '(空)'}"
+
+
 async def run_agent_turn(channel, requester, messages: list) -> str:
     """ツール呼び出し込みでLLMと対話し、最終的なテキスト返答を返す。"""
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -324,6 +357,9 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                     result = {"ok": True, "output": await wani_list_tasks()}
                 elif name == "create_task":
                     result = {"ok": True, "output": await wani_create_task(args.get("title", ""))}
+                elif name == "set_today_tasks":
+                    result = {"ok": True, "output": await wani_set_today(
+                        [int(n) for n in args.get("numbers", [])])}
                 elif name == "update_task_status":
                     result = {"ok": True, "output": await wani_update_status(
                         args.get("status", ""),

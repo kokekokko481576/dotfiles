@@ -61,6 +61,7 @@ async function refresh() {
     state = await res.json();
     renderShared();
     modes[currentMode]?.update(state);
+    maybeAutoPlan();
   } catch (e) {
     showError(`サーバーに接続できません: ${e.message}`);
   }
@@ -81,11 +82,123 @@ function renderShared() {
     `更新: ${new Date(state.now).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-// ---- タスク操作シート(ぼうけん/マップから使う共通UI) ----
-function activeQueue() {
-  // 冒険モードの敵の隊列と同じ並び(=Projectの手動順、Done/待ち/後回しを除く)
+// ---- 今日やるリスト ----
+const todayApproved = () => !!state?.today?.approved;
+const isToday = (t) => todayApproved() && state.today.item_ids.includes(t.item_id);
+
+function allActive() {
   return state.tasks.filter(
     (t) => !EXCLUDED.has(statusOf(t)) && statusOf(t) !== "done");
+}
+
+// ---- タスク操作シート(ぼうけん/マップから使う共通UI) ----
+function activeQueue() {
+  // 冒険モードの敵の隊列と同じ並び(=Projectの手動順、Done/待ち/後回しを除く)。
+  // 作戦会議で今日のリストを承認済みなら、今日のタスクだけに絞る
+  const active = allActive();
+  return todayApproved() ? active.filter(isToday) : active;
+}
+
+async function setTodayList(itemIds) {
+  const res = await fetch("api/today", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_ids: itemIds }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.detail || res.statusText);
+  return body;
+}
+
+// ---- 朝の作戦会議 ----
+let planShown = false;
+
+async function openPlanning() {
+  planShown = true;
+  const backdrop = $("plan-backdrop");
+  const list = $("plan-list");
+  const comment = $("plan-comment");
+  backdrop.hidden = false;
+  list.replaceChildren();
+
+  const active = allActive();
+  const checked = new Set(todayApproved()
+    ? state.today.item_ids.filter((id) => active.some((t) => t.item_id === id))
+    : []);
+  const reasons = new Map();
+
+  const renderList = () => {
+    list.replaceChildren();
+    for (const t of active) {
+      const label = document.createElement("label");
+      label.className = "plan-item" + (checked.has(t.item_id) ? " checked" : "");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked.has(t.item_id);
+      cb.onchange = () => {
+        cb.checked ? checked.add(t.item_id) : checked.delete(t.item_id);
+        label.classList.toggle("checked", cb.checked);
+      };
+      const body = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "plan-item-title";
+      title.textContent = (t.number ? `#${t.number} ` : "") + t.title;
+      body.appendChild(title);
+      if (reasons.has(t.item_id)) {
+        const r = document.createElement("div");
+        r.className = "plan-item-reason";
+        r.textContent = `🐊 ${reasons.get(t.item_id)}`;
+        body.appendChild(r);
+      }
+      const meta = document.createElement("div");
+      meta.className = "plan-item-meta";
+      meta.textContent = [statusJa(t.status), t.draft ? "メモ" : t.repo].filter(Boolean).join(" · ");
+      body.appendChild(meta);
+      label.append(cb, body);
+      list.appendChild(label);
+    }
+  };
+  renderList();
+
+  if (todayApproved()) {
+    comment.textContent = "今日のリストを編集できます。";
+  } else {
+    comment.textContent = "🐊 ワニ博士が考え中…";
+    try {
+      const res = await fetch("api/today/recommend", { method: "POST" });
+      const rec = await res.json();
+      if (!res.ok) throw new Error(rec.detail || res.statusText);
+      for (const p of rec.picks) {
+        checked.add(p.item_id);
+        reasons.set(p.item_id, p.reason);
+      }
+      comment.textContent = `🐊 ${rec.comment || "このあたりはどうでしょう。"}`;
+      renderList();
+    } catch (e) {
+      comment.textContent = `提案の取得に失敗しました(自分で選んでください): ${e.message}`;
+    }
+  }
+
+  $("plan-start").onclick = async () => {
+    $("plan-start").disabled = true;
+    try {
+      await setTodayList([...checked]);
+      backdrop.hidden = true;
+      await refresh();
+    } catch (e) {
+      showError(`保存に失敗しました: ${e.message}`);
+    } finally {
+      $("plan-start").disabled = false;
+    }
+  };
+}
+$("plan-later").onclick = () => { $("plan-backdrop").hidden = true; };
+$("plan-backdrop").onclick = (e) => { if (e.target === $("plan-backdrop")) $("plan-backdrop").hidden = true; };
+
+function maybeAutoPlan() {
+  if (planShown || todayApproved()) return;
+  if (state.mood.sleeping || !allActive().length) return;
+  openPlanning();
 }
 
 function showTaskSheet(task) {
@@ -115,9 +228,31 @@ function showTaskSheet(task) {
     actions.appendChild(btn);
   }
 
+  // 今日やる/やらないトグル(作戦会議承認後のみ)
+  const orderEl = $("sheet-order");
+  orderEl.replaceChildren();
+  if (todayApproved() && !EXCLUDED.has(statusOf(task)) && statusOf(task) !== "done") {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "status-btn" + (isToday(task) ? " active" : "");
+    btn.textContent = isToday(task) ? "⭐ きょうやる(解除する)" : "⭐ きょうやるに入れる";
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        const ids = new Set(state.today.item_ids);
+        isToday(task) ? ids.delete(task.item_id) : ids.add(task.item_id);
+        await setTodayList([...ids]);
+        closeSheet();
+        await refresh();
+      } catch (e) {
+        showError(`更新に失敗しました: ${e.message}`);
+      }
+    };
+    orderEl.appendChild(btn);
+  }
+
   // 並び替え(たたかう順 = GitHub Projectの並び順にも反映される)
-  const order = $("sheet-order");
-  order.replaceChildren();
+  const order = orderEl;
   const queue = activeQueue();
   const idx = queue.findIndex((t) => t.item_id === task.item_id);
   if (idx !== -1 && queue.length > 1) {
@@ -207,6 +342,8 @@ const core = {
   showTaskSheet,
   showEventSheet,
   showError,
+  openPlanning,
+  isToday, todayApproved, allActive,
   statusJa, statusOf,
   EXCLUDED,
 };

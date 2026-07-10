@@ -256,9 +256,10 @@ export function initAdventure(core) {
       kind: "event", ev, type: "clock",
       key: dismissKey(ev), seed: hashStr(ev.title),
     }));
-    // 敵の順番 = Projectの並び順(手動で変更可能)。in progress等での並べ替えはしない
+    // 敵の順番 = Projectの並び順(手動で変更可能)。作戦会議承認後は今日のタスクのみ
     const tasks = state.tasks
       .filter((tk) => !EXCLUDED.has(statusOf(tk)) && statusOf(tk) !== "done")
+      .filter((tk) => !core.todayApproved() || core.isToday(tk))
       .map((task) => ({
         kind: "task", task,
         type: enemyTypeFor(task),
@@ -290,7 +291,12 @@ export function initAdventure(core) {
     if (!state) return "";
     if (state.mood.sleeping) return "ワニ博士は やすんでいる… Zzz";
     const a = actors[0];
-    if (!a) return "あたりは しずかだ。＋でタスクを よびだせる。";
+    if (!a) {
+      if (core.todayApproved() && todayCounts().total > 0) {
+        return "きょうのぶんは ぜんぶ たおした！おみごと！(🗃から よびだせる)";
+      }
+      return "あたりは しずかだ。＋でタスクを よびだせる。";
+    }
     if (a.kind === "event") {
       const time = new Date(a.ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
       return `${time}『${short(a.ev.title, 16)}』のじかん！おわったら タップして「すんだ！」`;
@@ -593,10 +599,21 @@ export function initAdventure(core) {
     }
   }
 
+  // 今日リスト承認後は「今日の隊列」基準で討伐数を数える
+  function todayCounts() {
+    const ids = new Set(state.today?.item_ids || []);
+    const todays = state.tasks.filter((tk) => ids.has(tk.item_id));
+    return {
+      done: todays.filter((tk) => statusOf(tk) === "done").length,
+      total: todays.length,
+    };
+  }
+
   function drawHud() {
     if (!state) return;
     $("adv-stage").textContent = `ステージ ${Math.max(1, state.mood.streak)}`;
-    $("adv-kills").textContent = `討伐 ${state.progress.done}/${state.progress.total}`;
+    const c = core.todayApproved() ? todayCounts() : state.progress;
+    $("adv-kills").textContent = `討伐 ${c.done}/${c.total}`;
     $("adv-mood").textContent = `気分 ${Math.round(state.mood.mood)}`;
   }
 
@@ -637,7 +654,15 @@ export function initAdventure(core) {
     const waiting = state.tasks.filter((tk) => statusOf(tk) === "waiting");
     const wish = state.tasks.filter((tk) => statusOf(tk) === "wish list");
     const upcoming = upcomingEvents();
+    // 承認後: 今日のリストに入っていないアクティブなタスク(引きずり出し用)
+    const others = core.todayApproved()
+      ? core.allActive().filter((tk) => !core.isToday(tk))
+      : [];
     const boxes = [
+      ["🗃 そのほかのタスク ", others.map((tk) => ({
+        label: (tk.number ? `#${tk.number} ` : "") + short(tk.title, 22),
+        onClick: () => core.showTaskSheet(tk),
+      }))],
       ["📅 きょうのよてい ", upcoming.map((ev) => ({
         label: `${ev.all_day ? "終日" : new Date(ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} ${ev.title}`,
         onClick: null,
@@ -667,6 +692,14 @@ export function initAdventure(core) {
       }
       side.appendChild(details);
     }
+    // 作戦会議のやりなおし
+    const plan = document.createElement("button");
+    plan.type = "button";
+    plan.className = "adv-side-item";
+    plan.textContent = core.todayApproved()
+      ? "📋 きょうのリストを見直す(作戦会議)" : "📋 作戦会議をひらく";
+    plan.onclick = () => core.openPlanning();
+    side.appendChild(plan);
   }
 
   return {

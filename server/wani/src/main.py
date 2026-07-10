@@ -9,6 +9,7 @@
 利用者はPWA(スマホ)とbutler-bot(Discord)の2経路だが、状態は全部ここに集約する。
 どちらから進捗を更新してもワニ博士の気分が同じように変わる。
 """
+import json
 import logging
 import os
 import sys
@@ -42,6 +43,12 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
 N8N_TODAY_SCHEDULE_URL = os.environ.get(
     "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
 EVENTS_CACHE_TTL = 300
+
+# 朝の作戦会議のレコメンド用LLM(LiteLLM経由のGemini、butler-botと同じ経路)。
+# キー未設定なら簡易ヒューリスティックにフォールバックする
+LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000/v1")
+LITELLM_MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.5-flash-vertex")
 
 _events_lock = threading.Lock()
 _events_cache: list | None = None
@@ -127,8 +134,102 @@ def _snapshot() -> dict:
         "tasks": tasks,
         "statuses": statuses,
         "events": fetch_today_events(),
+        "today": store.load_today(now.strftime("%Y-%m-%d")),
         "now": now.isoformat(),
     }
+
+
+# ---- 朝の作戦会議(今日やるリスト) ----
+
+EXCLUDED_FROM_TODAY = EXCLUDED_FROM_PROGRESS | {"done"}
+
+
+def _active_tasks(tasks):
+    return [t for t in tasks
+            if (t.get("status") or "").casefold() not in EXCLUDED_FROM_TODAY]
+
+
+def _heuristic_recommend(active: list[dict]) -> dict:
+    picks = [{"item_id": t["item_id"], "reason": "隊列の前のほうにいたので"}
+             for t in active[:3]]
+    return {"picks": picks, "comment": "(LLM未設定のため先頭から選びました)"}
+
+
+def _llm_recommend(active: list[dict], events: list[dict], now: datetime) -> dict:
+    task_lines = "\n".join(
+        f"- item_id={t['item_id']} #{t['number'] or 'メモ'} [{t['status']}] "
+        f"{t['title']} (repo: {t['repo'] or 'なし'})"
+        for t in active)
+    event_lines = "\n".join(
+        f"- {'終日' if e['all_day'] else (e['start'] or '')[11:16]} {e['title']}"
+        for e in events) or "(予定なし)"
+    weekday = "月火水木金土日"[now.weekday()]
+    prompt = (
+        f"今日は{now.strftime('%m月%d日')}({weekday}曜日)。\n"
+        f"## 今日の予定\n{event_lines}\n\n## タスク一覧\n{task_lines}\n\n"
+        "この人が今日やるタスクを2〜4件選んでください。予定の空き時間との相性、"
+        "着手済み(In Progress/Review)の完遂優先、作業の重さのバランスを考慮すること。\n"
+        "次のJSONだけを出力: {\"picks\": [{\"item_id\": \"...\", \"reason\": \"20字以内\"}], "
+        "\"comment\": \"全体への励まし一言(40字以内)\"}"
+    )
+    resp = requests.post(
+        f"{LITELLM_BASE_URL}/chat/completions",
+        headers={"Authorization": f"Bearer {LITELLM_MASTER_KEY}"},
+        json={
+            "model": LLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        },
+        timeout=45,
+    )
+    resp.raise_for_status()
+    content = resp.json()["choices"][0]["message"]["content"]
+    data = json.loads(content)
+    valid_ids = {t["item_id"] for t in active}
+    picks = [p for p in data.get("picks", []) if p.get("item_id") in valid_ids][:4]
+    if not picks:
+        raise ValueError("LLMの提案が空")
+    return {"picks": picks, "comment": str(data.get("comment", ""))[:60]}
+
+
+@app.post("/api/today/recommend")
+def recommend_today():
+    """Geminiが今日やるタスクを提案する(保存はしない)。"""
+    now = datetime.now()
+    try:
+        tasks = source.list_tasks()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    active = _active_tasks(tasks)
+    if not active:
+        return {"picks": [], "comment": "アクティブなタスクがありません"}
+    if not LITELLM_MASTER_KEY:
+        return _heuristic_recommend(active)
+    try:
+        return _llm_recommend(active, fetch_today_events(), now)
+    except Exception as e:
+        log.warning("LLMレコメンド失敗、ヒューリスティックで代替: %s", e)
+        result = _heuristic_recommend(active)
+        result["comment"] = f"(Gemini提案に失敗したので先頭から: {e})"[:80]
+        return result
+
+
+class TodayUpdate(BaseModel):
+    item_ids: list[str]
+
+
+@app.post("/api/today")
+def set_today(body: TodayUpdate):
+    """今日やるリストを保存(承認)する。"""
+    now = datetime.now()
+    try:
+        valid_ids = {t["item_id"] for t in source.list_tasks()}
+    except Exception:
+        valid_ids = None  # GitHub不調時は検証スキップ(リスト自体はローカル保存)
+    item_ids = [i for i in body.item_ids if valid_ids is None or i in valid_ids]
+    data = {"date": now.strftime("%Y-%m-%d"), "item_ids": item_ids, "approved": True}
+    store.save_today(data)
+    return {"ok": True, "today": data}
 
 
 @app.get("/healthz")

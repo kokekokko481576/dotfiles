@@ -49,7 +49,7 @@ export function initClassic(core) {
     card.className = "task" + (statusOf(t) === "done" ? " done" : "");
     const title = document.createElement("div");
     title.className = "task-title";
-    title.textContent = (t.number ? `#${t.number} ` : "") + t.title;
+    title.textContent = (core.isToday(t) ? "⭐ " : "") + (t.number ? `#${t.number} ` : "") + t.title;
     card.appendChild(title);
     const meta = document.createElement("div");
     meta.className = "task-meta";

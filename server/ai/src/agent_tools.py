@@ -140,6 +140,25 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "set_today_tasks",
+            "description": (
+                "「今日やるタスク」リストを設定する(朝の作戦会議)。numbersにタスク番号を"
+                "渡すとそのタスクだけが今日の隊列に出る。「今日は#10と#15やる」のような"
+                "依頼で使う。既存の今日リストは上書きされる。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "numbers": {"type": "array", "items": {"type": "integer"},
+                                "description": "今日やるタスク番号のリスト"},
+                },
+                "required": ["numbers"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_task_status",
             "description": (
                 "タスクの進捗状態を変更する。番号付きタスクはnumber、番号のないメモ(Draft)は"

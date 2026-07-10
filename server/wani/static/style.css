@@ -201,6 +201,34 @@ body {
 .sheet-order .status-btn { flex: 1; }
 .sheet-order-label { font-size: 11px; color: var(--sub); width: 100%; }
 
+/* ---- 朝の作戦会議 ---- */
+.plan-comment {
+  font-size: 13px; line-height: 1.6;
+  background: var(--chip);
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-height: 2em;
+}
+.plan-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 44vh; overflow-y: auto;
+}
+.plan-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.plan-item input { margin-top: 3px; accent-color: var(--green); width: 16px; height: 16px; }
+.plan-item.checked { border-color: var(--green); background: var(--chip); }
+.plan-item-title { font-size: 13px; line-height: 1.4; }
+.plan-item-reason { font-size: 11px; color: var(--green-deep); margin-top: 2px; }
+@media (prefers-color-scheme: dark) { .plan-item-reason { color: #7fd18f; } }
+.plan-item-meta { font-size: 10px; color: var(--sub); margin-top: 1px; }
+
 /* ---- ぼうけんモード ---- */
 .adv-card {
   background: var(--panel);

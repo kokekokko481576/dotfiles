@@ -62,11 +62,13 @@ function mockEvents() {
   };
   return [mk(-10, 60, "ゼミ"), mk(120, 60, "実験装置の予約")];
 }
+const MOCK_TODAY = {date: new Date().toISOString().slice(0,10), item_ids: [], approved: false};
 function stateNow() {
   MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
   return {mock: true, error: null, mood: {...MOCK_MOOD}, progress: progressOf(),
           tasks: MOCK_TASKS.map(t => ({...t})), statuses: MOCK_STATUSES,
-          events: mockEvents(), now: new Date().toISOString()};
+          events: mockEvents(), today: {...MOCK_TODAY, item_ids: [...MOCK_TODAY.item_ids]},
+          now: new Date().toISOString()};
 }
 window.fetch = async (url, opts = {}) => {
   const respond = (obj, status = 200) =>
@@ -99,6 +101,18 @@ window.fetch = async (url, opts = {}) => {
     if (after_item_id == null) MOCK_TASKS.unshift(moving);
     else MOCK_TASKS.splice(MOCK_TASKS.findIndex(t => t.item_id === after_item_id) + 1, 0, moving);
     return respond({ok: true});
+  }
+  if (url.match(/api\\/today\\/recommend$/)) {
+    const picks = MOCK_TASKS.filter(t => !EXCLUDED_P.has((t.status||"").toLowerCase()))
+      .slice(0, 3).map((t, i) => ({item_id: t.item_id,
+        reason: ["予定の合間にちょうどよい", "着手済みなので今日で倒せる", "軽いので勢いがつく"][i]}));
+    return respond({picks, comment: "午後の予定が多めなので、午前に重いのを片付けましょう！"});
+  }
+  if (url.match(/api\\/today$/)) {
+    const {item_ids} = JSON.parse(opts.body);
+    MOCK_TODAY.item_ids = item_ids;
+    MOCK_TODAY.approved = true;
+    return respond({ok: true, today: {...MOCK_TODAY}});
   }
   if (url.match(/api\\/tasks$/)) {
     const {title} = JSON.parse(opts.body);

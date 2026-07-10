@@ -12,6 +12,7 @@ from pathlib import Path
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
 STATE_FILE = DATA_DIR / "wani_state.json"
 MOCK_TASKS_FILE = DATA_DIR / "mock_tasks.json"
+TODAY_FILE = DATA_DIR / "today.json"
 
 _lock = threading.Lock()
 
@@ -69,6 +70,23 @@ def load_state() -> dict:
 def save_state(state: dict) -> None:
     with _lock:
         _save(STATE_FILE, state)
+
+
+# ---- 「今日やる」リスト(朝の作戦会議で決める。日付が変わると自動リセット) ----
+_DEFAULT_TODAY = {"date": None, "item_ids": [], "approved": False}
+
+
+def load_today(today_str: str) -> dict:
+    with _lock:
+        data = _load(TODAY_FILE, _DEFAULT_TODAY)
+    if data.get("date") != today_str:
+        data = {"date": today_str, "item_ids": [], "approved": False}
+    return data
+
+
+def save_today(data: dict) -> None:
+    with _lock:
+        _save(TODAY_FILE, data)
 
 
 def load_mock_tasks() -> list[dict]:
