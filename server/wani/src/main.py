@@ -241,6 +241,17 @@ def healthz():
     return {"ok": True}
 
 
+@app.get("/.well-known/assetlinks.json")
+def assetlinks():
+    """TWA(Androidアプリ)のDigital Asset Links。
+    APKビルド時に生成される署名証明書のフィンガープリント入りJSONを
+    DATA_DIR/twa/assetlinks.json から配信する(guide/14参照)。"""
+    path = DATA_DIR / "twa" / "assetlinks.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="assetlinks.json未生成")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 @app.get("/api/state")
 def get_state():
     return _snapshot()

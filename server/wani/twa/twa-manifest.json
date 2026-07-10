@@ -1,0 +1,42 @@
+{
+  "packageId": "dev.kokko.wani",
+  "host": "kokko-server-pavilion.tailed0412.ts.net",
+  "name": "ワニ博士",
+  "launcherName": "ワニ博士",
+  "display": "standalone",
+  "themeColor": "#3fa34d",
+  "themeColorDark": "#1a241c",
+  "navigationColor": "#3fa34d",
+  "navigationColorDark": "#1a241c",
+  "navigationDividerColor": "#3fa34d",
+  "navigationDividerColorDark": "#1a241c",
+  "backgroundColor": "#e8f4dd",
+  "enableNotifications": false,
+  "startUrl": "/wani/",
+  "iconUrl": "http://127.0.0.1:8090/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "/twa-data/wani.keystore",
+    "alias": "wani"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "http://127.0.0.1:8090/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://kokko-server-pavilion.tailed0412.ts.net/wani/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "appVersion": "1.0.0"
+}
