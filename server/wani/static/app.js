@@ -6,6 +6,9 @@ import { initMap } from "./map.js";
 
 const $ = (id) => document.getElementById(id);
 
+// フッターに出すバージョン。デプロイが端末に届いているかの確認用(更新時に上げる)
+export const APP_VERSION = "v11";
+
 export const STATUS_JA = {
   "waiting": "待ち", "todo": "未着手", "in progress": "進行中",
   "review": "レビュー", "done": "完了", "wish list": "後回し",
@@ -82,7 +85,7 @@ function renderShared() {
   $("streak").hidden = state.mood.streak <= 0;
   $("streak").querySelector("b").textContent = state.mood.streak;
   $("updated-at").textContent =
-    `更新: ${new Date(state.now).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`;
+    `更新: ${new Date(state.now).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} · ${APP_VERSION}`;
 }
 
 // ---- 今日やるリスト ----

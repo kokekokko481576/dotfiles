@@ -93,20 +93,31 @@ export function initAdventure(core) {
   const canvas = $("adv-canvas");
   const ctx = canvas.getContext("2d");
 
-  // 画面に収まる縦横比に論理解像度を合わせる(メッセージ窓+余白のぶんを差し引く)
+  // 画面に収まる縦横比に論理解像度を合わせる。
+  // 横向きスマホはCSSでフルスクリーン(HUD/メッセージはオーバーレイ)になるので
+  // ビューポート全体の比率、縦向きはメッセージ窓+余白を差し引いた比率を使う
+  const fsLandscape = matchMedia("(orientation: landscape) and (max-height: 520px)");
+
   function fitCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    const availW = rect.width || canvas.parentElement.clientWidth;
-    if (!availW) return;
-    const reservedBelow = $("adv-msg").offsetHeight + 46;
-    const availH = Math.max(150, window.innerHeight - rect.top - reservedBelow);
-    const newCW = Math.round(Math.min(1400, Math.max(440, CH * (availW / availH))));
+    let availW, availH;
+    if (fsLandscape.matches) {
+      availW = window.innerWidth;
+      availH = window.innerHeight;
+    } else {
+      const rect = canvas.getBoundingClientRect();
+      availW = rect.width || canvas.parentElement.clientWidth;
+      if (!availW) return;
+      const reservedBelow = $("adv-msg").offsetHeight + 46;
+      availH = Math.max(150, window.innerHeight - rect.top - reservedBelow);
+    }
+    const newCW = Math.round(Math.min(1600, Math.max(440, CH * (availW / availH))));
     if (Math.abs(newCW - CW) > 8) {
       CW = newCW;
       canvas.width = CW;
       canvas.style.aspectRatio = `${CW} / ${CH}`;
     }
   }
+  fsLandscape.addEventListener?.("change", () => setTimeout(() => visible && fitCanvas(), 60));
 
   let state = null;
   let visible = false;
