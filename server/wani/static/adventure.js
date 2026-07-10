@@ -266,10 +266,15 @@ export function initAdventure(core) {
         key: task.item_id, seed: hashStr(task.item_id),
       }));
     const next = [...evs, ...tasks];
-    // 位置は既存のものを引き継ぐ(新入りは右端から歩いてくる)
+    // 位置は既存のものを引き継ぐ。タスクは右端から歩いて、予定は右上から飛んでくる
     const old = new Map(actors.map((a) => [a.key, a]));
-    actors = next.map((a, i) => {
+    actors = next.map((a) => {
       const prev = old.get(a.key);
+      if (a.kind === "event") {
+        return { ...a, flying: true,
+                 x: prev ? prev.x : CW + 30, y: prev?.y ?? -40,
+                 sink: prev?.sink || 0 };
+      }
       return { ...a, x: prev ? prev.x : CW + 40, sink: prev ? prev.sink : 0, flip: prev?.flip };
     });
     // 予定の割り込みを検知してメッセージ
@@ -482,61 +487,84 @@ export function initAdventure(core) {
   }
 
   function drawActors() {
-    for (let i = 0; i < actors.length; i++) {
-      const a = actors[i];
-      const target = BATTLE_X + i * ENEMY_GAP;
-      a.x += (target - a.x) * (REDUCED ? 1 : 0.1);
-      if (a.dying) {
-        a.sink = (a.sink || 0) + 5;   // 討伐: 棒ごと下に引っ込む
-        if (a.sink > 130) { a.gone = true; continue; }
-      }
-      if (a.x > CW + 30) continue;
+    let taskIndex = 0;   // 地上の隊列(棒付き)の位置は予定を数えずに決める
+    let eventIndex = 0;
+    for (const a of actors) {
+      let labelY;
+      if (a.flying) {
+        // 予定: 右上から飛来して、先頭タスクの手前上空でホバリング
+        const hx = 205 + eventIndex * 52;
+        const hy = GROUND_Y - 104 + (REDUCED ? 0 : Math.sin((t + a.seed) / 9) * 5);
+        eventIndex++;
+        a.x += (hx - a.x) * (REDUCED ? 1 : 0.07);
+        a.y = (a.y ?? -40) + (hy - (a.y ?? -40)) * (REDUCED ? 1 : 0.07);
+        const img = objSheet(a.type, ((t + a.seed) / 12) | 0);
+        const scale = 3.2;
+        const w = img.width * scale, h = img.height * scale;
+        ctx.save();
+        ctx.translate(a.x, a.y);
+        if (!REDUCED) ctx.rotate(Math.sin((t + a.seed) / 7) * 0.09); // 羽ばたき風の傾き
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+        a.hitbox = { x: a.x - w / 2, y: a.y - h / 2, w, h };
+        labelY = a.y - h / 2;
+        // 時刻
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        const tm = new Date(a.ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.55)";
+        ctx.strokeText(`⏰${tm}`, a.x, labelY - 6);
+        ctx.fillStyle = "#ffd447";
+        ctx.fillText(`⏰${tm}`, a.x, labelY - 6);
+        labelY -= 14; // 名前は時刻のさらに上に
+      } else {
+        const i = taskIndex++;
+        const target = BATTLE_X + i * ENEMY_GAP;
+        a.x += (target - a.x) * (REDUCED ? 1 : 0.1);
+        if (a.dying) {
+          a.sink = (a.sink || 0) + 5;   // 討伐: 棒ごと下に引っ込む
+          if (a.sink > 130) { a.gone = true; continue; }
+        }
+        if (a.x > CW + 30) continue;
 
-      let flipX = 1;
-      if (a.flipHit) {
-        a.flipHit.t++;
-        flipX = Math.cos((a.flipHit.t / a.flipHit.life) * Math.PI * 2);
-        if (a.flipHit.t >= a.flipHit.life) a.flipHit = null;
-      }
-      const img = objSheet(a.type, ((t + a.seed) / 16) | 0);
-      const scale = (i === 0 ? 3.4 : 2.8) * (a.kind === "event" ? 1.1 : 1);
-      const rock = REDUCED ? 0 : Math.sin((t + a.seed) / 13) * 0.07;
-      const w = img.width * scale, h = img.height * scale;
-      drawPuppet(img, a.x, GROUND_Y, w, h, { rock, flipX, sink: a.sink || 0, pixel: true });
-      a.hitbox = { x: a.x - w / 2, y: GROUND_Y - h, w, h };
-
-      if (a.sink) continue;
-      // HPバー(タスクのみ)
-      if (a.kind === "task") {
+        let flipX = 1;
+        if (a.flipHit) {
+          a.flipHit.t++;
+          flipX = Math.cos((a.flipHit.t / a.flipHit.life) * Math.PI * 2);
+          if (a.flipHit.t >= a.flipHit.life) a.flipHit = null;
+        }
+        const img = objSheet(a.type, ((t + a.seed) / 16) | 0);
+        const scale = i === 0 ? 3.4 : 2.8;
+        const rock = REDUCED ? 0 : Math.sin((t + a.seed) / 13) * 0.07;
+        const w = img.width * scale, h = img.height * scale;
+        drawPuppet(img, a.x, GROUND_Y, w, h, { rock, flipX, sink: a.sink || 0, pixel: true });
+        a.hitbox = { x: a.x - w / 2, y: GROUND_Y - h, w, h };
+        if (a.sink) continue;
+        // HPバー
         const st = statusOf(a.task);
         const hp = st === "review" ? 1 / 3 : st === "in progress" ? 2 / 3 : 1;
         ctx.fillStyle = "rgba(0,0,0,.45)";
         ctx.fillRect(a.x - 20, GROUND_Y - h - 12, 40, 6);
         ctx.fillStyle = hp > 0.5 ? "#e5484d" : "#ff9a3d";
         ctx.fillRect(a.x - 19, GROUND_Y - h - 11, 38 * hp, 4);
-      } else {
-        // 予定は時刻表示
-        ctx.font = "bold 11px sans-serif";
-        ctx.textAlign = "center";
-        const tm = new Date(a.ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.55)";
-        ctx.strokeText(`⏰${tm}`, a.x, GROUND_Y - h - 14);
-        ctx.fillStyle = "#ffd447";
-        ctx.fillText(`⏰${tm}`, a.x, GROUND_Y - h - 14);
+        labelY = GROUND_Y - h - 8;
       }
       // 名前
       ctx.font = "11px sans-serif";
       ctx.textAlign = "center";
-      const label = short(a.kind === "task" ? a.task.title : a.ev.title, i === 0 ? 16 : 9);
+      const isFront = a.flying || actors.indexOf(a) === 0;
+      const label = short(a.kind === "task" ? a.task.title : a.ev.title, isFront ? 16 : 9);
       ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.55)";
-      ctx.strokeText(label, a.x, GROUND_Y - h - 20);
+      ctx.strokeText(label, a.x, labelY - 12);
       ctx.fillStyle = "#fff";
-      ctx.fillText(label, a.x, GROUND_Y - h - 20);
+      ctx.fillText(label, a.x, labelY - 12);
     }
     const gone = actors.filter((a) => a.gone);
     if (gone.length) actors = actors.filter((a) => !a.gone);
-    // 画面外の敵の数
-    const offscreen = actors.filter((a) => BATTLE_X + actors.indexOf(a) * ENEMY_GAP > CW - 30).length;
+    // 画面外の敵の数(地上の隊列のみ)
+    const groundActors = actors.filter((a) => !a.flying);
+    const offscreen = groundActors.filter((a, i) => BATTLE_X + i * ENEMY_GAP > CW - 30).length;
     if (offscreen > 0) {
       ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "right";

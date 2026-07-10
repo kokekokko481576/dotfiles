@@ -1,4 +1,7 @@
-// クラシック(リスト)モード: カード型のタスク一覧+気分表示。初代UI。
+// リストモード: コンパクトな1行1タスクの一覧。
+// - 行タップで共通タスクシート(状態変更・きょうやる・並び替え)
+// - 表示順: ぼうけん同期(=Projectの手動順、デフォルト) / 期限順 / 番号順
+// - ぼうけん同期のときだけ ≡ ハンドルのドラッグで並び替えできる(GitHubにも反映)
 import { PALETTE, SPRITES, SPRITE_W, SPRITE_H } from "./sprites.js";
 
 const $ = (id) => document.getElementById(id);
@@ -14,6 +17,12 @@ const SAY = {
   sleeping: ["すやすや…", "Zzz…"],
 };
 
+const SORTS = [
+  ["adventure", "ぼうけん同期"],
+  ["due", "期限順"],
+  ["number", "番号順"],
+];
+
 export function initClassic(core) {
   const { statusJa, statusOf, EXCLUDED } = core;
   const stage = $("stage");
@@ -22,7 +31,9 @@ export function initClassic(core) {
   let frameIndex = 0;
   let overrideSprite = null;
   let timer = null;
+  let sortMode = localStorage.getItem("wani_sort") || "adventure";
 
+  // ---- ワニ博士(気分表示) ----
   function spriteName() {
     if (overrideSprite) return overrideSprite;
     if (!state) return "normal";
@@ -44,43 +55,6 @@ export function initClassic(core) {
     }
   }
 
-  function taskCard(t) {
-    const card = document.createElement("div");
-    card.className = "task" + (statusOf(t) === "done" ? " done" : "");
-    const title = document.createElement("div");
-    title.className = "task-title";
-    title.textContent = (core.isToday(t) ? "⭐ " : "") + (t.number ? `#${t.number} ` : "") + t.title;
-    card.appendChild(title);
-    const meta = document.createElement("div");
-    meta.className = "task-meta";
-    meta.textContent =
-      [t.draft ? "メモ(Draft)" : t.repo, ...(t.labels || [])].filter(Boolean).join(" · ");
-    card.appendChild(meta);
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
-    for (const s of state.statuses) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "status-btn" + (s === t.status ? " active" : "");
-      btn.textContent = statusJa(s);
-      btn.onclick = async () => {
-        if (s === t.status) return;
-        btn.disabled = true;
-        try {
-          const result = await core.updateStatus(t, s);
-          if (result.event === "done") celebrate();
-          await core.refresh();
-        } catch (e) {
-          core.showError(`更新に失敗しました: ${e.message}`);
-          btn.disabled = false;
-        }
-      };
-      actions.appendChild(btn);
-    }
-    card.appendChild(actions);
-    return card;
-  }
-
   function celebrate() {
     overrideSprite = "excellent";
     stage.classList.add("pop");
@@ -88,39 +62,186 @@ export function initClassic(core) {
     setTimeout(() => { overrideSprite = null; drawFrame(); }, 4000);
   }
 
+  // ---- ソート ----
+  function sorted(tasks) {
+    const arr = [...tasks];
+    if (sortMode === "due") {
+      arr.sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1
+        : (a.due || "9999") > (b.due || "9999") ? 1 : 0);
+    } else if (sortMode === "number") {
+      arr.sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9));
+    }
+    // adventure = APIの並びのまま(Projectの手動順)
+    return arr;
+  }
+
+  function dueChip(t) {
+    if (!t.due) return null;
+    const chip = document.createElement("span");
+    const today = new Date().toISOString().slice(0, 10);
+    chip.className = "row-due" + (t.due < today ? " overdue" : t.due === today ? " today" : "");
+    chip.textContent = t.due.slice(5).replace("-", "/");
+    return chip;
+  }
+
+  // ---- 行 ----
+  function row(t, { draggable = false } = {}) {
+    const el = document.createElement("div");
+    el.className = "row" + (statusOf(t) === "done" ? " done" : "");
+    el.dataset.itemId = t.item_id;
+
+    if (draggable) {
+      const handle = document.createElement("span");
+      handle.className = "row-handle";
+      handle.textContent = "≡";
+      handle.addEventListener("pointerdown", (e) => startDrag(e, el));
+      el.appendChild(handle);
+    }
+    const title = document.createElement("span");
+    title.className = "row-title";
+    title.textContent = (core.isToday(t) ? "⭐" : "") +
+      (t.number ? `#${t.number} ` : "") + t.title;
+    el.appendChild(title);
+
+    const due = dueChip(t);
+    if (due) el.appendChild(due);
+
+    const chip = document.createElement("span");
+    chip.className = `row-status st-${statusOf(t).replace(" ", "-")}`;
+    chip.textContent = statusJa(t.status);
+    el.appendChild(chip);
+
+    el.addEventListener("click", (e) => {
+      if (e.target.classList.contains("row-handle")) return;
+      core.showTaskSheet(t);
+    });
+    return el;
+  }
+
+  // ---- ドラッグ並び替え(ぼうけん同期のときのみ) ----
+  let drag = null;
+  function startDrag(e, el) {
+    e.preventDefault();
+    const list = el.parentElement;
+    el.setPointerCapture?.(e.pointerId);
+    drag = { el, list, startY: e.clientY, moved: false };
+    el.classList.add("dragging");
+
+    const onMove = (ev) => {
+      if (!drag) return;
+      drag.moved = true;
+      // ポインタ位置に対応するスロットへ行を差し込み直す(Doneの行より上まで)
+      const y = ev.clientY;
+      let placed = false;
+      for (const sib of [...list.children]) {
+        if (sib === el) continue;
+        if (sib.classList.contains("done")) break;
+        const r = sib.getBoundingClientRect();
+        if (y < r.top + r.height / 2) {
+          list.insertBefore(el, sib);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        const firstDone = [...list.children].find((c) => c !== el && c.classList.contains("done"));
+        firstDone ? list.insertBefore(el, firstDone) : list.appendChild(el);
+      }
+    };
+    const onUp = async () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (!drag) return;
+      const { el: dEl, list: dList, moved } = drag;
+      drag = null;
+      dEl.classList.remove("dragging");
+      dEl.style.transform = "";
+      if (!moved) return;
+      const prev = dEl.previousElementSibling;
+      try {
+        await moveTask(dEl.dataset.itemId, prev ? prev.dataset.itemId : null);
+        await core.refresh();
+      } catch (err) {
+        core.showError(`並び替えに失敗しました: ${err.message}`);
+        await core.refresh();
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  }
+
+  async function moveTask(itemId, afterItemId) {
+    const res = await fetch(`api/tasks/${encodeURIComponent(itemId)}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ after_item_id: afterItemId }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+  }
+
+  // ---- 描画 ----
   function update(s) {
     state = s;
     const m = state.mood;
     $("mood-label").textContent = m.sleeping ? "おやすみ中" : (LEVEL_TEXT[m.level] || m.level);
     $("mood-bar").style.width = `${m.mood}%`;
-    const sayKey = m.sleeping ? "sleeping" : m.level;
-    const says = SAY[sayKey] || SAY.normal;
+    const says = SAY[m.sleeping ? "sleeping" : m.level] || SAY.normal;
     $("wani-say").textContent = says[Math.floor(Math.random() * says.length)];
 
     const p = state.progress;
     $("progress-text").textContent = `${p.done} / ${p.total} 完了`;
     $("progress-bar").style.width = `${p.percent}%`;
 
+    // ソート切替
+    const toolbar = $("list-toolbar");
+    toolbar.replaceChildren();
+    const label = document.createElement("span");
+    label.textContent = "表示順:";
+    toolbar.appendChild(label);
+    const select = document.createElement("select");
+    select.className = "sort-select";
+    for (const [value, text] of SORTS) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = text;
+      opt.selected = value === sortMode;
+      select.appendChild(opt);
+    }
+    select.onchange = () => {
+      sortMode = select.value;
+      localStorage.setItem("wani_sort", sortMode);
+      update(state);
+    };
+    toolbar.appendChild(select);
+    if (sortMode === "adventure") {
+      const hint = document.createElement("span");
+      hint.className = "sort-hint";
+      hint.textContent = "≡を掴んで並び替え";
+      toolbar.appendChild(hint);
+    }
+
     const list = $("task-list");
     list.replaceChildren();
-    const active = [], waiting = [], wish = [];
+    const active = [], waiting = [], wish = [], done = [];
     for (const t of state.tasks) {
       const st = statusOf(t);
       if (st === "waiting") waiting.push(t);
       else if (st === "wish list") wish.push(t);
+      else if (st === "done") done.push(t);
       else active.push(t);
     }
-    if (!active.length) {
+    if (!active.length && !done.length) {
       const div = document.createElement("div");
       div.className = "tasks-empty";
       div.textContent = state.error ? "" : "アクティブなタスクがありません。＋で追加してください。";
       list.appendChild(div);
-    } else {
-      // 並びはProjectの手動順を尊重(冒険モードの隊列と同じ)。Doneだけ下へ
-      active.sort((a, b) =>
-        (statusOf(a) === "done" ? 1 : 0) - (statusOf(b) === "done" ? 1 : 0));
-      for (const t of active) list.appendChild(taskCard(t));
     }
+    const draggable = sortMode === "adventure";
+    for (const t of sorted(active)) list.appendChild(row(t, { draggable }));
+    for (const t of done) list.appendChild(row(t));
+
     for (const [tasks, boxId, listId, countId] of [
       [waiting, "waiting-box", "waiting-list", "waiting-count"],
       [wish, "wish-box", "wish-list", "wish-count"],
@@ -129,7 +250,7 @@ export function initClassic(core) {
       $(countId).textContent = tasks.length ? `${tasks.length}件` : "";
       const el = $(listId);
       el.replaceChildren();
-      for (const t of tasks) el.appendChild(taskCard(t));
+      for (const t of tasks) el.appendChild(row(t));
     }
     drawFrame();
   }
@@ -138,5 +259,6 @@ export function initClassic(core) {
     update,
     show() { timer = setInterval(() => { frameIndex++; drawFrame(); }, 600); },
     hide() { clearInterval(timer); },
+    onTaskEvent(result) { if (result.event === "done") celebrate(); },
   };
 }

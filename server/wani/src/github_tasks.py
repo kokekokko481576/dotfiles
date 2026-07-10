@@ -68,6 +68,10 @@ query($login: String!, $number: Int!, $after: String) {
                 name
                 field { ... on ProjectV2SingleSelectField { name } }
               }
+              ... on ProjectV2ItemFieldDateValue {
+                date
+                field { ... on ProjectV2FieldCommon { name } }
+              }
             }
           }
           content {
@@ -324,9 +328,15 @@ class TaskSource:
                 if not is_draft and content.get("state") != "OPEN":
                     continue
                 status_name = None
+                due = None
                 for fv in node["fieldValues"]["nodes"]:
-                    if fv and fv.get("field", {}).get("name") == STATUS_FIELD_NAME:
-                        status_name = fv["name"]
+                    if not fv:
+                        continue
+                    if fv.get("field", {}).get("name") == STATUS_FIELD_NAME:
+                        status_name = fv.get("name")
+                    elif "date" in fv:
+                        # Projectの日付フィールド(名前は問わず最初の1つ)を期限として扱う
+                        due = due or fv.get("date")
                 items.append({
                     "item_id": node["id"],
                     "number": content.get("number"),  # Draftはnull
@@ -336,6 +346,7 @@ class TaskSource:
                     "labels": [l["name"] for l in (content.get("labels") or {}).get("nodes", [])],
                     "status": status_name or "Todo",
                     "draft": is_draft,
+                    "due": due,
                 })
 
             page_info = project["items"]["pageInfo"]
