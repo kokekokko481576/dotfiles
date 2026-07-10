@@ -110,7 +110,15 @@ export function initClassic(core) {
     wrap.addEventListener("click", (e) => e.stopPropagation());
     anchor.replaceWith(wrap);
 
+    // 確定はchangeイベント、キャンセルはエディタ外タップ。
+    // (blurで消す方式はスマホの日付ピッカーが開いた瞬間にblurが飛び、
+    //  選択を確定する前にエディタが破棄されてしまうためやめた)
+    let committed = false;
+    const cleanup = () => document.removeEventListener("pointerdown", onOutside, true);
     const post = async (due) => {
+      if (committed) return;
+      committed = true;
+      cleanup();
       try {
         const res = await fetch(`api/tasks/${encodeURIComponent(t.item_id)}/due`, {
           method: "POST",
@@ -123,12 +131,17 @@ export function initClassic(core) {
       }
       await core.refresh();
     };
-    input.onchange = () => { if (input.value) post(input.value); };
-    clear.onclick = () => post(null);
-    input.addEventListener("blur", () => {
-      // 少し待ってから再描画(クリアボタンのclickを先に処理させる)
-      setTimeout(() => { if (document.body.contains(wrap)) core.refresh(); }, 250);
+    input.addEventListener("change", () => {
+      if (input.value && input.value !== t.due) post(input.value);
     });
+    clear.onclick = () => post(null);
+    const onOutside = (e) => {
+      if (!wrap.contains(e.target)) {
+        cleanup();
+        if (!committed) core.refresh(); // 変更なしで閉じる
+      }
+    };
+    setTimeout(() => document.addEventListener("pointerdown", onOutside, true), 0);
     input.focus();
     input.showPicker?.();
   }

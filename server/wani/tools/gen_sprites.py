@@ -298,11 +298,12 @@ SIDE_BASE = [
 
 
 def side_normal_1():
-    return grid(SIDE_BASE)
+    # 公式イラストと同じく、通常時から口を開けて笑っている
+    return _side_open_mouth(grid(SIDE_BASE))
 
 
 def side_normal_2():
-    g = grid(SIDE_BASE)
+    g = side_normal_1()
     return [list("." * W)] + g[:-1]
 
 
@@ -319,7 +320,7 @@ def _side_close_eyes(g):
 
 
 def side_blink():
-    return _side_close_eyes(grid(SIDE_BASE))
+    return _side_close_eyes(_side_open_mouth(grid(SIDE_BASE)))
 
 
 def _side_open_mouth(g):
