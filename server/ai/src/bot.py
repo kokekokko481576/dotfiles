@@ -215,6 +215,13 @@ async def wani_list_tasks() -> str:
         lines.append(f"{star}{ref} [{t.get('status') or 'Todo'}] {t['title']}")
     if not state["tasks"]:
         lines.append("(タスクなし)")
+    todos = state.get("todos") or []
+    if todos:
+        lines.append("📝 Google ToDo:")
+        for t in todos:
+            mark = "(きょうまで!)" if t.get("forced") else \
+                (f"期限{t['due']}" if t.get("due") else "期限なし")
+            lines.append(f"・{t['title']} {mark}")
     return "\n".join(lines)
 
 

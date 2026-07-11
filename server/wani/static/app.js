@@ -1,13 +1,13 @@
 // ワニ博士 PWA コア: 状態取得・API・モード切替・共通UI(タスクシート/追加)。
 // 各モードの描画は classic.js / adventure.js / map.js に分離。
-import { initClassic } from "./classic.js?v=15";
-import { initAdventure } from "./adventure.js?v=15";
-import { initMap } from "./map.js?v=15";
+import { initClassic } from "./classic.js?v=16";
+import { initAdventure } from "./adventure.js?v=16";
+import { initMap } from "./map.js?v=16";
 
 const $ = (id) => document.getElementById(id);
 
 // フッターに出すバージョン。デプロイが端末に届いているかの確認用(更新時に上げる)
-export const APP_VERSION = "v15";
+export const APP_VERSION = "v16";
 
 export const STATUS_JA = {
   "waiting": "待ち", "todo": "未着手", "in progress": "進行中",
@@ -93,6 +93,72 @@ function renderShared() {
 const todayApproved = () => !!state?.today?.approved;
 const isToday = (t) => todayApproved() && state.today.item_ids.includes(t.item_id);
 
+// ---- Google ToDo ----
+export const todoKey = (t) => `todo:${t.id}`;
+const allTodos = () => state?.todos || [];
+// 隊列に出るToDo: 期限が今日以前(forced=問答無用) or 作戦会議で選択済み
+function battleTodos() {
+  return allTodos().filter((t) =>
+    t.forced || (todayApproved() && state.today.item_ids.includes(todoKey(t))));
+}
+
+async function apiCompleteTodo(todo) {
+  const res = await fetch(`api/todos/${encodeURIComponent(todo.id)}/complete`, { method: "POST" });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.detail || res.statusText);
+  return body;
+}
+
+function showTodoSheet(todo) {
+  $("sheet-title").textContent = `📝 ${todo.title}`;
+  $("sheet-meta").textContent = "Google ToDo · " +
+    (todo.due ? `期限 ${todo.due}${todo.forced ? "(きょうまで!)" : ""}` : "期限なし") +
+    (todo.notes ? ` · ${todo.notes}` : "");
+  const actions = $("sheet-actions");
+  actions.replaceChildren();
+  const kill = document.createElement("button");
+  kill.type = "button";
+  kill.className = "status-btn active";
+  kill.textContent = "⚔ たおす(完了にする)";
+  kill.onclick = async () => {
+    kill.disabled = true;
+    try {
+      await apiCompleteTodo(todo);
+      closeSheet();
+      modes[currentMode]?.onTaskEvent?.({ event: "done", task: { item_id: todoKey(todo) } });
+      await refresh();
+    } catch (e) {
+      showError(`完了にできませんでした: ${e.message}`);
+      kill.disabled = false;
+    }
+  };
+  actions.appendChild(kill);
+
+  const order = $("sheet-order");
+  order.replaceChildren();
+  if (!todo.due && todayApproved()) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const selected = state.today.item_ids.includes(todoKey(todo));
+    btn.className = "status-btn" + (selected ? " active" : "");
+    btn.textContent = selected ? "⭐ きょうやる(解除する)" : "⭐ きょうやるに入れる";
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        const ids = new Set(state.today.item_ids);
+        selected ? ids.delete(todoKey(todo)) : ids.add(todoKey(todo));
+        await setTodayList([...ids]);
+        closeSheet();
+        await refresh();
+      } catch (e) {
+        showError(`更新に失敗しました: ${e.message}`);
+      }
+    };
+    order.appendChild(btn);
+  }
+  $("sheet-backdrop").hidden = false;
+}
+
 function allActive() {
   return state.tasks.filter(
     (t) => !EXCLUDED.has(statusOf(t)) && statusOf(t) !== "done");
@@ -128,7 +194,15 @@ async function openPlanning() {
   backdrop.hidden = false;
   list.replaceChildren();
 
-  const active = allActive();
+  // 候補 = GitHubのアクティブ + 期限なしGoogle ToDo
+  // (期限付きToDoはforcedで自動出撃するため選択対象外)
+  const active = [
+    ...allActive(),
+    ...allTodos().filter((t) => !t.due).map((t) => ({
+      item_id: todoKey(t), number: null, title: `📝 ${t.title}`,
+      status: "ToDo", repo: "Google ToDo", draft: false,
+    })),
+  ];
   const checked = new Set(todayApproved()
     ? state.today.item_ids.filter((id) => active.some((t) => t.item_id === id))
     : []);
@@ -331,6 +405,9 @@ const core = {
   updateStatus: apiUpdateStatus,
   refresh,
   showTaskSheet,
+  showTodoSheet,
+  battleTodos,
+  todoKey,
   moveTask: apiMove,
   setEditing: (v) => { editing = v; },
   showError,

@@ -5,7 +5,7 @@
 //   討伐 = 棒ごと下に引っ込む
 // タスク=敵の隊列(並び順はGitHub Projectの手動順)。Googleカレンダーの予定は
 // 時間になると「じかんまじん」として最前列に割り込む。
-import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=15";
+import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=16";
 
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -159,7 +159,18 @@ export function initAdventure(core) {
         type: enemyTypeFor(task),
         key: task.item_id, seed: hashStr(task.item_id),
       }));
-    const next = [...evs, ...tasks];
+    // Google ToDo: 期限が今日以前(forced)は隊列の先頭へ問答無用で割り込み。
+    // 作戦会議で選んだ期限なしToDoは隊列の後ろに並ぶ
+    const todos = core.battleTodos().map((todo) => ({
+      kind: "todo", todo,
+      type: ENEMY_TYPES[hashStr(todo.id) % ENEMY_TYPES.length],
+      key: core.todoKey(todo), seed: hashStr(todo.id),
+      forced: todo.forced,
+    }));
+    const next = [...evs,
+                  ...todos.filter((t) => t.forced),
+                  ...tasks,
+                  ...todos.filter((t) => !t.forced)];
     // 位置は既存のものを引き継ぐ。タスクは右端から歩いて、予定は右上から飛んでくる
     const old = new Map(actors.map((a) => [a.key, a]));
     actors = next.map((a) => {
@@ -201,6 +212,9 @@ export function initAdventure(core) {
         ? new Date(a.ev.end).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
         : null;
       return `いまは『${short(a.ev.title, 16)}』のじかん！${end ? `(${end}まで)` : ""}`;
+    }
+    if (a.kind === "todo") {
+      return `📝『${short(a.todo.title, 16)}』を かたづけよう！${a.forced ? "(きょうまで！)" : ""}`;
     }
     const st = statusOf(a.task);
     if (st === "in progress") return `${ENEMY_NAMES[a.type]}と たたかっている！(${short(a.task.title)})`;
@@ -446,8 +460,8 @@ export function initAdventure(core) {
         drawPuppet(img, a.x, GROUND_Y, w, h, { rock, flipX, sink: a.sink || 0, pixel: true });
         a.hitbox = { x: a.x - w / 2, y: GROUND_Y - h, w, h };
         if (a.sink) continue;
-        // HPバー
-        const st = statusOf(a.task);
+        // HPバー(ToDoは常に満タン=一撃で倒す系)
+        const st = a.kind === "task" ? statusOf(a.task) : "todo";
         const hp = st === "review" ? 1 / 3 : st === "in progress" ? 2 / 3 : 1;
         ctx.fillStyle = "rgba(0,0,0,.45)";
         ctx.fillRect(a.x - 20, GROUND_Y - h - 12, 40, 6);
@@ -455,14 +469,16 @@ export function initAdventure(core) {
         ctx.fillRect(a.x - 19, GROUND_Y - h - 11, 38 * hp, 4);
         labelY = GROUND_Y - h - 8;
       }
-      // 名前
+      // 名前(ToDoは📝つき・薄黄色で区別)
       ctx.font = "11px sans-serif";
       ctx.textAlign = "center";
       const isFront = a.flying || actors.indexOf(a) === 0;
-      const label = short(a.kind === "task" ? a.task.title : a.ev.title, isFront ? 16 : 9);
+      const rawLabel = a.kind === "task" ? a.task.title
+        : a.kind === "todo" ? `📝${a.todo.title}` : a.ev.title;
+      const label = short(rawLabel, isFront ? 16 : 9);
       ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.55)";
       ctx.strokeText(label, a.x, labelY - 12);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = a.kind === "todo" ? "#ffe9a0" : "#fff";
       ctx.fillText(label, a.x, labelY - 12);
     }
     const gone = actors.filter((a) => a.gone);
@@ -536,9 +552,13 @@ export function initAdventure(core) {
   function todayCounts() {
     const ids = new Set(state.today?.item_ids || []);
     const todays = state.tasks.filter((tk) => ids.has(tk.item_id));
+    // ToDo分: 隊列に出るもの(forced+選択済み) + 今日すでに倒したToDo
+    // (完了するとGoogle側から消えるため、done_todosで討伐数を保持している)
+    const doneTodos = (state.today?.done_todos || []).length;
+    const remainTodos = core.battleTodos().length;
     return {
-      done: todays.filter((tk) => statusOf(tk) === "done").length,
-      total: todays.length,
+      done: todays.filter((tk) => statusOf(tk) === "done").length + doneTodos,
+      total: todays.length + remainTodos + doneTodos,
     };
   }
 
@@ -642,6 +662,7 @@ export function initAdventure(core) {
       const { x } = canvasPos(ev);
       pointer = null;
       if (a?.kind === "task") core.showTaskSheet(a.task);
+      else if (a?.kind === "todo") core.showTodoSheet(a.todo);
       else if (a?.kind === "event") say(defaultMsg());
       else if (x < WANI_X + 60) say(defaultMsg());
       return;

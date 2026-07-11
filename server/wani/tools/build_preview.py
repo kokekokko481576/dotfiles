@@ -62,12 +62,17 @@ function mockEvents() {
   };
   return [mk(-10, 60, "ゼミ"), mk(120, 60, "実験装置の予約")];
 }
-const MOCK_TODAY = {date: new Date().toISOString().slice(0,10), item_ids: [], approved: false};
+const MOCK_TODAY = {date: new Date().toISOString().slice(0,10), item_ids: [], approved: false, done_todos: []};
+const MOCK_TODOS = [
+  {id: "td1", title: "牛乳を買う", due: null, notes: "", forced: false},
+  {id: "td2", title: "レポート提出", due: new Date().toISOString().slice(0,10), notes: "", forced: true},
+];
 function stateNow() {
   MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
   return {mock: true, error: null, mood: {...MOCK_MOOD}, progress: progressOf(),
           tasks: MOCK_TASKS.map(t => ({...t})), statuses: MOCK_STATUSES,
-          events: mockEvents(), today: {...MOCK_TODAY, item_ids: [...MOCK_TODAY.item_ids]},
+          events: mockEvents(), todos: MOCK_TODOS.map(t => ({...t})),
+          today: {...MOCK_TODAY, item_ids: [...MOCK_TODAY.item_ids]},
           now: new Date().toISOString()};
 }
 window.fetch = async (url, opts = {}) => {
@@ -108,6 +113,17 @@ window.fetch = async (url, opts = {}) => {
     if (after_item_id == null) MOCK_TASKS.unshift(moving);
     else MOCK_TASKS.splice(MOCK_TASKS.findIndex(t => t.item_id === after_item_id) + 1, 0, moving);
     return respond({ok: true});
+  }
+  if ((m = url.match(/api\\/todos\\/([^/]+)\\/complete/))) {
+    const id = decodeURIComponent(m[1]);
+    const i = MOCK_TODOS.findIndex(t => t.id === id);
+    if (i === -1) return respond({detail: "not found"}, 404);
+    MOCK_TODOS.splice(i, 1);
+    MOCK_TODAY.done_todos.push(id);
+    MOCK_MOOD.mood = Math.min(100, MOCK_MOOD.mood + 18);
+    MOCK_MOOD.today_done++;
+    MOCK_MOOD.level = lvl(MOCK_MOOD.mood);
+    return respond({ok: true, event: "done", mood: {...MOCK_MOOD}});
   }
   if (url.match(/api\\/today\\/recommend$/)) {
     const picks = MOCK_TASKS.filter(t => !EXCLUDED_P.has((t.status||"").toLowerCase()))

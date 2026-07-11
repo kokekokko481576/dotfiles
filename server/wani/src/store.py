@@ -73,20 +73,45 @@ def save_state(state: dict) -> None:
 
 
 # ---- 「今日やる」リスト(朝の作戦会議で決める。日付が変わると自動リセット) ----
-_DEFAULT_TODAY = {"date": None, "item_ids": [], "approved": False}
+# item_idsにはGitHubのitem_idに加えて "todo:<GoogleタスクID>" も入る。
+# done_todosは今日完了したGoogle ToDoのID(完了するとソースから消えるため討伐数用に記録)
+_DEFAULT_TODAY = {"date": None, "item_ids": [], "approved": False, "done_todos": []}
 
 
 def load_today(today_str: str) -> dict:
     with _lock:
         data = _load(TODAY_FILE, _DEFAULT_TODAY)
     if data.get("date") != today_str:
-        data = {"date": today_str, "item_ids": [], "approved": False}
+        data = {"date": today_str, "item_ids": [], "approved": False, "done_todos": []}
+    data.setdefault("done_todos", [])
     return data
 
 
 def save_today(data: dict) -> None:
     with _lock:
         _save(TODAY_FILE, data)
+
+
+# GoogleToDoのモック(GitHub未設定のモックモード時のみ使用)
+MOCK_TODOS_FILE = DATA_DIR / "mock_todos.json"
+_DEFAULT_MOCK_TODOS = [
+    {"id": "todo-a", "title": "牛乳を買う", "due": None, "notes": ""},
+    {"id": "todo-b", "title": "レポート提出", "due": "2026-07-11", "notes": "17時まで"},
+    {"id": "todo-c", "title": "図書館の返却", "due": "2026-07-15", "notes": ""},
+]
+
+
+def load_mock_todos() -> list[dict]:
+    with _lock:
+        todos = _load(MOCK_TODOS_FILE, _DEFAULT_MOCK_TODOS)
+        if not MOCK_TODOS_FILE.exists():
+            _save(MOCK_TODOS_FILE, todos)
+        return todos
+
+
+def save_mock_todos(todos: list[dict]) -> None:
+    with _lock:
+        _save(MOCK_TODOS_FILE, todos)
 
 
 def load_mock_tasks() -> list[dict]:

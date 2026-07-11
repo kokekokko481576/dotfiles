@@ -52,6 +52,10 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
 # 冒険モードで「予定の時間になったら敵として割り込む」ために使う
 N8N_TODAY_SCHEDULE_URL = os.environ.get(
     "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+# Google ToDo(Google Tasks)。n8nの「ワニ博士_ToDo取得/完了」ワークフロー経由
+N8N_TODOS_URL = os.environ.get("N8N_TODOS_URL", "http://n8n:5678/webhook/todos")
+N8N_TODO_COMPLETE_URL = os.environ.get(
+    "N8N_TODO_COMPLETE_URL", "http://n8n:5678/webhook/todo-complete")
 EVENTS_CACHE_TTL = 300
 
 # 朝の作戦会議のレコメンド用LLM(LiteLLM経由のGemini、butler-botと同じ経路)。
@@ -148,9 +152,91 @@ def _snapshot(fresh: bool = False) -> dict:
         "tasks": tasks,
         "statuses": statuses,
         "events": fetch_today_events(),
+        "todos": _todos_view(now),
         "today": store.load_today(now.strftime("%Y-%m-%d")),
         "now": now.isoformat(),
     }
+
+
+# ---- Google ToDo(Google Tasks) ----
+_todos_lock = threading.Lock()
+_todos_cache: list | None = None
+_todos_at = 0.0
+
+
+def fetch_todos(fresh: bool = False) -> list[dict]:
+    """未完了のGoogle ToDoを{id, title, due, notes}に正規化して返す。
+
+    モックモード(GitHub未設定)はローカルJSON。n8n側ワークフロー未作成でも
+    空リストで劣化動作する。
+    """
+    global _todos_cache, _todos_at
+    if source.mock:
+        return store.load_mock_todos()
+    with _todos_lock:
+        if not fresh and _todos_cache is not None and time.time() - _todos_at < EVENTS_CACHE_TTL:
+            return _todos_cache
+    todos = []
+    try:
+        resp = requests.get(N8N_TODOS_URL, timeout=10)
+        resp.raise_for_status()
+        body = resp.json() or []
+        if isinstance(body, dict):
+            body = [body]
+        for t in body:
+            due = t.get("due")
+            todos.append({
+                "id": t.get("id"),
+                "title": t.get("title", "(無題)"),
+                "due": due[:10] if due else None,  # RFC3339 → YYYY-MM-DD
+                "notes": t.get("notes", ""),
+            })
+    except Exception as e:
+        log.warning("ToDo取得に失敗(ToDoなし扱い): %s", e)
+        todos = []
+    with _todos_lock:
+        _todos_cache = todos
+        _todos_at = time.time()
+    return todos
+
+
+def _todos_view(now: datetime) -> list[dict]:
+    """フロント向け: forced(期限が今日以前=問答無用でその日にやる)を付与。"""
+    today_str = now.strftime("%Y-%m-%d")
+    out = []
+    for t in fetch_todos():
+        out.append({**t, "forced": bool(t["due"]) and t["due"] <= today_str})
+    return out
+
+
+@app.post("/api/todos/{todo_id}/complete")
+def complete_todo(todo_id: str):
+    """Google ToDoを完了にする(=モンスター討伐)。気分+18、討伐数に記録。"""
+    global _todos_at
+    now = datetime.now()
+    if source.mock:
+        todos = store.load_mock_todos()
+        if not any(t["id"] == todo_id for t in todos):
+            raise HTTPException(status_code=404, detail="ToDoが見つかりません")
+        store.save_mock_todos([t for t in todos if t["id"] != todo_id])
+    else:
+        try:
+            resp = requests.post(N8N_TODO_COMPLETE_URL, json={"taskId": todo_id}, timeout=15)
+            resp.raise_for_status()
+        except Exception as e:
+            log.exception("ToDo完了の書き戻しに失敗")
+            raise HTTPException(status_code=502, detail=f"Google側の更新に失敗: {e}")
+        with _todos_lock:
+            _todos_at = 0.0  # キャッシュ破棄
+
+    today = store.load_today(now.strftime("%Y-%m-%d"))
+    if todo_id not in today["done_todos"]:
+        today["done_todos"].append(todo_id)
+        store.save_today(today)
+
+    state = mood.apply_event(store.load_state(), "done", now)
+    store.save_state(state)
+    return {"ok": True, "event": "done", "mood": mood.summary(state, now)}
 
 
 # ---- 朝の作戦会議(今日やるリスト) ----
@@ -215,6 +301,10 @@ def recommend_today():
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
     active = _active_tasks(tasks)
+    # 期限なしのGoogle ToDoも候補に含める(期限付きはforcedで自動出撃するため除外)
+    active += [{"item_id": f"todo:{t['id']}", "number": None, "title": t["title"],
+                "status": "ToDo", "repo": "GoogleToDo"}
+               for t in fetch_todos() if not t["due"]]
     if not active:
         return {"picks": [], "comment": "アクティブなタスクがありません"}
     if not LITELLM_MASTER_KEY:
@@ -234,14 +324,17 @@ class TodayUpdate(BaseModel):
 
 @app.post("/api/today")
 def set_today(body: TodayUpdate):
-    """今日やるリストを保存(承認)する。"""
+    """今日やるリストを保存(承認)する。GitHubのitem_idと todo:<id> が混在できる。"""
     now = datetime.now()
     try:
         valid_ids = {t["item_id"] for t in source.list_tasks()}
+        valid_ids |= {f"todo:{t['id']}" for t in fetch_todos()}
     except Exception:
-        valid_ids = None  # GitHub不調時は検証スキップ(リスト自体はローカル保存)
+        valid_ids = None  # 外部不調時は検証スキップ(リスト自体はローカル保存)
     item_ids = [i for i in body.item_ids if valid_ids is None or i in valid_ids]
-    data = {"date": now.strftime("%Y-%m-%d"), "item_ids": item_ids, "approved": True}
+    prev = store.load_today(now.strftime("%Y-%m-%d"))
+    data = {"date": now.strftime("%Y-%m-%d"), "item_ids": item_ids,
+            "approved": True, "done_todos": prev.get("done_todos", [])}
     store.save_today(data)
     return {"ok": True, "today": data}
 

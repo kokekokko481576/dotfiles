@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <main class="app">
@@ -59,6 +59,11 @@
     <details id="wish-box" class="group" hidden>
       <summary>後回しBOX（wish list） <span id="wish-count"></span></summary>
       <div id="wish-list" class="tasks"></div>
+    </details>
+
+    <details id="todo-box" class="group" open hidden>
+      <summary>📝 Google ToDo <span id="todo-count"></span></summary>
+      <div id="todo-list" class="tasks compact"></div>
     </details>
   </div>
 
@@ -130,6 +135,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=15"></script>
+<script type="module" src="app.js?v=16"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 // - 行タップで共通タスクシート(状態変更・きょうやる・並び替え)
 // - 表示順: ぼうけん同期(=Projectの手動順、デフォルト) / 期限順 / 番号順
 // - ぼうけん同期のときだけ ≡ ハンドルのドラッグで並び替えできる(GitHubにも反映)
-import { PALETTE, SPRITES, SPRITE_W, SPRITE_H } from "./sprites.js?v=15";
+import { PALETTE, SPRITES, SPRITE_W, SPRITE_H } from "./sprites.js?v=16";
 
 const $ = (id) => document.getElementById(id);
 
@@ -317,6 +317,40 @@ export function initClassic(core) {
       const el = $(listId);
       el.replaceChildren();
       for (const t of tasks) el.appendChild(row(t));
+    }
+
+    // Google ToDo(行タップでToDoシート=討伐/きょうやる)
+    const todos = state.todos || [];
+    $("todo-box").hidden = !todos.length;
+    $("todo-count").textContent = todos.length ? `${todos.length}件` : "";
+    const tl = $("todo-list");
+    tl.replaceChildren();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    for (const td of todos) {
+      const el = document.createElement("div");
+      el.className = "row";
+      const title = document.createElement("span");
+      title.className = "row-title";
+      title.textContent = "📝 " + td.title;
+      el.appendChild(title);
+      const chip = document.createElement("span");
+      if (td.due) {
+        chip.className = "row-due" + (td.due < todayStr ? " overdue" : td.due === todayStr ? " today" : "");
+        chip.textContent = td.due.slice(5).replace("-", "/");
+      } else {
+        chip.className = "row-due empty";
+        chip.textContent = "期限なし";
+      }
+      el.appendChild(chip);
+      const selected = state.today?.approved && state.today.item_ids.includes(`todo:${td.id}`);
+      if (td.forced || selected) {
+        const star = document.createElement("span");
+        star.className = "row-status st-in-progress";
+        star.textContent = td.forced ? "きょうまで" : "きょうやる";
+        el.appendChild(star);
+      }
+      el.addEventListener("click", () => core.showTodoSheet(td));
+      tl.appendChild(el);
     }
     drawFrame();
   }

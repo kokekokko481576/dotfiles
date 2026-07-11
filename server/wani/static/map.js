@@ -1,6 +1,6 @@
 // マップモード: 今日の道のりをすごろく風の俯瞰マップで表示。
 // 討伐済み(Done)は旗、現在地にワニ博士、先のマスは未踏。タップでタスクシート。
-import { PALETTE, SPRITES } from "./sprites.js?v=15";
+import { PALETTE, SPRITES } from "./sprites.js?v=16";
 
 const $ = (id) => document.getElementById(id);
 const NODE_R = 17;

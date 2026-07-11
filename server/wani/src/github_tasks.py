@@ -85,6 +85,11 @@ query($login: String!, $number: Int!, $after: String) {
               labels(first: 20) { nodes { name } }
               repository { nameWithOwner }
             }
+            ... on PullRequest {
+              number title url prState: state
+              labels(first: 20) { nodes { name } }
+              repository { nameWithOwner }
+            }
             ... on DraftIssue {
               draftTitle: title
             }
@@ -388,9 +393,9 @@ class TaskSource:
             for node in project["items"]["nodes"]:
                 content = node.get("content") or {}
                 is_draft = "draftTitle" in content
-                # issueはOPENのみ。Draft item(リポジトリに属さないメモ的タスク)はそのまま扱う
-                if not is_draft and content.get("state") != "OPEN":
-                    continue
+                # issue/PRの状態。CLOSED/MERGED = 実質完了
+                gh_state = content.get("state") or content.get("prState")
+                closed = (not is_draft) and gh_state in ("CLOSED", "MERGED")
                 status_name = None
                 due = None
                 for fv in node["fieldValues"]["nodes"]:
@@ -403,6 +408,13 @@ class TaskSource:
                         # 書き込み先と同じフィールドだけを期限として読む
                         # (「着手」など他のDATEフィールドは無視)
                         due = fv.get("date")
+                if closed:
+                    # クローズ済み+Status=Doneは整理済みとして非表示(従来どおり)。
+                    # クローズ済みなのにStatusがTodo等のまま(ボードの更新漏れ)は
+                    # 「読み取れないissue」に見えるため、Doneとして表示する
+                    if (status_name or "").casefold() == "done":
+                        continue
+                    status_name = "Done"
                 items.append({
                     "item_id": node["id"],
                     "number": content.get("number"),  # Draftはnull
@@ -413,6 +425,7 @@ class TaskSource:
                     "status": status_name or "Todo",
                     "draft": is_draft,
                     "due": due,
+                    "closed": closed,
                 })
 
             page_info = project["items"]["pageInfo"]
