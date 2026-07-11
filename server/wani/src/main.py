@@ -127,12 +127,12 @@ def _progress(tasks: list[dict]) -> dict:
     }
 
 
-def _snapshot() -> dict:
+def _snapshot(fresh: bool = False) -> dict:
     now = datetime.now()
     state = mood.apply_decay(store.load_state(), now)
     store.save_state(state)
     try:
-        tasks = source.list_tasks()
+        tasks = source.list_tasks(force_refresh=fresh)
         statuses = source.status_names()
         error = None
     except Exception as e:
@@ -263,8 +263,9 @@ def assetlinks():
 
 
 @app.get("/api/state")
-def get_state():
-    return _snapshot()
+def get_state(fresh: bool = False):
+    """fresh=1でGitHub側の60秒キャッシュも飛ばして取り直す(手動更新ボタン用)。"""
+    return _snapshot(fresh=fresh)
 
 
 @app.post("/api/tasks")

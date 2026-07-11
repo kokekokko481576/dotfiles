@@ -1,13 +1,13 @@
 // ワニ博士 PWA コア: 状態取得・API・モード切替・共通UI(タスクシート/追加)。
 // 各モードの描画は classic.js / adventure.js / map.js に分離。
-import { initClassic } from "./classic.js?v=14";
-import { initAdventure } from "./adventure.js?v=14";
-import { initMap } from "./map.js?v=14";
+import { initClassic } from "./classic.js?v=15";
+import { initAdventure } from "./adventure.js?v=15";
+import { initMap } from "./map.js?v=15";
 
 const $ = (id) => document.getElementById(id);
 
 // フッターに出すバージョン。デプロイが端末に届いているかの確認用(更新時に上げる)
-export const APP_VERSION = "v14";
+export const APP_VERSION = "v15";
 
 export const STATUS_JA = {
   "waiting": "待ち", "todo": "未着手", "in progress": "進行中",
@@ -59,10 +59,11 @@ async function apiCreateTask(title) {
 
 let editing = false; // インライン編集中は自動refreshでDOMを壊さない
 
-async function refresh() {
+async function refresh(fresh = false) {
   if (editing) return;
   try {
-    const res = await fetch("api/state");
+    // fresh=true(手動更新ボタン)はサーバーのGitHubキャッシュも飛ばして取り直す
+    const res = await fetch(fresh ? "api/state?fresh=1" : "api/state");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     state = await res.json();
     renderShared();
@@ -364,7 +365,7 @@ for (const btn of document.querySelectorAll(".mode-tab")) {
 }
 
 // ---- 起動 ----
-$("refresh").onclick = refresh;
+$("refresh").onclick = () => refresh(true);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 window.addEventListener("resize", () => modes[currentMode]?.onResize?.());
 window.addEventListener("orientationchange", () => setTimeout(() => modes[currentMode]?.onResize?.(), 200));
