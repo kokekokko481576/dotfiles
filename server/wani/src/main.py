@@ -187,7 +187,7 @@ def fetch_todos(fresh: bool = False) -> list[dict]:
             due = t.get("due")
             todos.append({
                 "id": t.get("id"),
-                "title": t.get("title", "(無題)"),
+                "title": t.get("title") or "(無題)",
                 "due": due[:10] if due else None,  # RFC3339 → YYYY-MM-DD
                 "notes": t.get("notes", ""),
             })
