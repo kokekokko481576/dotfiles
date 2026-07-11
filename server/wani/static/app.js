@@ -1,8 +1,8 @@
 // ワニ博士 PWA コア: 状態取得・API・モード切替・共通UI(タスクシート/追加)。
 // 各モードの描画は classic.js / adventure.js / map.js に分離。
-import { initClassic } from "./classic.js";
-import { initAdventure } from "./adventure.js";
-import { initMap } from "./map.js";
+import { initClassic } from "./classic.js?v=12";
+import { initAdventure } from "./adventure.js?v=12";
+import { initMap } from "./map.js?v=12";
 
 const $ = (id) => document.getElementById(id);
 
