@@ -5,7 +5,7 @@
 //   討伐 = 棒ごと下に引っ込む
 // タスク=敵の隊列(並び順はGitHub Projectの手動順)。Googleカレンダーの予定は
 // 時間になると「じかんまじん」として最前列に割り込む。
-import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=12";
+import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=13";
 
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;

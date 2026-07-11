@@ -2,7 +2,7 @@
 // - 行タップで共通タスクシート(状態変更・きょうやる・並び替え)
 // - 表示順: ぼうけん同期(=Projectの手動順、デフォルト) / 期限順 / 番号順
 // - ぼうけん同期のときだけ ≡ ハンドルのドラッグで並び替えできる(GitHubにも反映)
-import { PALETTE, SPRITES, SPRITE_W, SPRITE_H } from "./sprites.js?v=12";
+import { PALETTE, SPRITES, SPRITE_W, SPRITE_H } from "./sprites.js?v=13";
 
 const $ = (id) => document.getElementById(id);
 

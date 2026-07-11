@@ -1,13 +1,13 @@
 // ワニ博士 PWA コア: 状態取得・API・モード切替・共通UI(タスクシート/追加)。
 // 各モードの描画は classic.js / adventure.js / map.js に分離。
-import { initClassic } from "./classic.js?v=12";
-import { initAdventure } from "./adventure.js?v=12";
-import { initMap } from "./map.js?v=12";
+import { initClassic } from "./classic.js?v=13";
+import { initAdventure } from "./adventure.js?v=13";
+import { initMap } from "./map.js?v=13";
 
 const $ = (id) => document.getElementById(id);
 
 // フッターに出すバージョン。デプロイが端末に届いているかの確認用(更新時に上げる)
-export const APP_VERSION = "v12";
+export const APP_VERSION = "v13";
 
 export const STATUS_JA = {
   "waiting": "待ち", "todo": "未着手", "in progress": "進行中",
