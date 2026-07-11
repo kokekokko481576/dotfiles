@@ -5,7 +5,7 @@
 //   討伐 = 棒ごと下に引っ込む
 // タスク=敵の隊列(並び順はGitHub Projectの手動順)。Googleカレンダーの予定は
 // 時間になると「じかんまじん」として最前列に割り込む。
-import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=13";
+import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=14";
 
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -413,14 +413,15 @@ export function initAdventure(core) {
         ctx.restore();
         a.hitbox = { x: a.x - w / 2, y: a.y - h / 2, w, h };
         labelY = a.y - h / 2;
-        // 時刻
+        // 開始〜終了時刻
         ctx.font = "bold 11px sans-serif";
         ctx.textAlign = "center";
-        const tm = new Date(a.ev.start).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+        const fmt = (iso) => new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+        const tm = `⏰${fmt(a.ev.start)}${a.ev.end ? `〜${fmt(a.ev.end)}` : ""}`;
         ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.55)";
-        ctx.strokeText(`⏰${tm}`, a.x, labelY - 6);
+        ctx.strokeText(tm, a.x, labelY - 6);
         ctx.fillStyle = "#ffd447";
-        ctx.fillText(`⏰${tm}`, a.x, labelY - 6);
+        ctx.fillText(tm, a.x, labelY - 6);
         labelY -= 14; // 名前は時刻のさらに上に
       } else {
         const i = taskIndex++;
@@ -551,6 +552,14 @@ export function initAdventure(core) {
 
   function frame() {
     t++;
+    // 予定の出現/退場は時刻ちょうどに反映する(取得済みデータの時刻判定だけなので約2秒毎)
+    if (state && t % 120 === 0) {
+      const nowKeys = new Set(activeEvents().map((ev) => `ev_${ev.title}_${ev.start}`));
+      const curKeys = new Set(actors.filter((a) => a.kind === "event").map((a) => a.key));
+      if (nowKeys.size !== curKeys.size || [...nowKeys].some((k) => !curKeys.has(k))) {
+        rebuildActors();
+      }
+    }
     scrollX += (scrollTarget - scrollX) * 0.06;
     drawScene();
     drawWani();
