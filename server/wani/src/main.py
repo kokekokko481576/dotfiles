@@ -87,6 +87,7 @@ def fetch_today_events() -> list[dict]:
                 "start": start.get("dateTime") or start.get("date"),
                 "end": end.get("dateTime") or end.get("date"),
                 "all_day": "dateTime" not in start,
+                "event_type": e.get("eventType", "default"),
             })
         events.sort(key=lambda e: e["start"] or "")
     except Exception as e:
@@ -151,7 +152,7 @@ def _snapshot(fresh: bool = False) -> dict:
         "progress": _progress(tasks),
         "tasks": tasks,
         "statuses": statuses,
-        "events": fetch_today_events(),
+        "events": _events_view(now),
         "todos": _todos_view(now),
         "today": store.load_today(now.strftime("%Y-%m-%d")),
         "now": now.isoformat(),
@@ -198,6 +199,26 @@ def fetch_todos(fresh: bool = False) -> list[dict]:
         _todos_cache = todos
         _todos_at = time.time()
     return todos
+
+
+def _events_view(now: datetime) -> list[dict]:
+    """予定一覧からGoogle ToDo由来の重複を除く。
+
+    期限付きToDoはGoogleカレンダーの取得結果にも同名の項目として現れることがあり、
+    放置すると同じ題名の「じかんまじん」と「チェックまる」が同時に出てしまう。
+    eventType="task"のもの、およびToDoと同名・同日のものを予定側から落とす。
+    """
+    todo_pairs = {(t["title"], t["due"]) for t in fetch_todos() if t["due"]}
+    todo_titles = {t["title"] for t in fetch_todos()}
+    out = []
+    for e in fetch_today_events():
+        if e.get("event_type") == "task":
+            continue
+        start_date = (e.get("start") or "")[:10]
+        if (e["title"], start_date) in todo_pairs or e["title"] in todo_titles:
+            continue
+        out.append(e)
+    return out
 
 
 def _todos_view(now: datetime) -> list[dict]:

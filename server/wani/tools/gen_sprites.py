@@ -45,6 +45,7 @@ PALETTE = {
     "d": (152, 84, 46),    # ツボの影
     "u": (233, 110, 50),   # タートルの甲羅(Ubuntuオレンジ)
     "B": (30, 32, 40),     # ICチップの黒
+    "l": (66, 133, 244),   # Google ToDoの青
 }
 
 W = 32
@@ -623,6 +624,35 @@ TURTLE = [
     ".KGGK......KGGK",
     "..KK........KK",
 ]
+# Google ToDoのモンスター「チェックまる」(丸チェックボックスのロゴ風+目+足)。
+# ✓の左短・右長の非対称を正確に出すためプログラム生成
+def _checkmaru():
+    import math
+    g = [["." for _ in range(16)] for _ in range(16)]
+    cx = cy = 7.5
+    for y in range(16):
+        for x in range(16):
+            d = math.hypot(x - cx, y - cy)
+            if 5.2 <= d <= 7.0:
+                g[y][x] = "l"
+    # チェックマーク: 左の短い下り + 右の長い上り
+    for i in range(3):          # (4,8)→(6,10)
+        g[8 + i][4 + i] = "l"
+        g[9 + i][4 + i] = "l"
+    for i in range(6):          # (6,10)→(11,5)
+        g[10 - i][6 + i] = "l"
+        g[11 - i][6 + i] = "l"
+    # 目
+    g[5][5] = "P"
+    g[5][10] = "P"
+    # 足
+    for x in (4, 5, 10, 11):
+        g[15][x] = "K"
+    return ["".join(r) for r in g]
+
+
+CHECKMARU = _checkmaru()
+
 CLOCK = [
     "",
     "..KK........KK",
@@ -651,6 +681,7 @@ OBJECTS = {
     "herb": {"w": 8, "frames": [HERB]},
     "coin": {"w": 6, "frames": [COIN]},
     "clock": {"w": 16, "frames": [CLOCK, _shift_down(CLOCK, 16)]},
+    "check": {"w": 16, "frames": [CHECKMARU, _shift_down(CHECKMARU, 16)]},
     "chip": {"w": 16, "frames": [CHIP, _shift_down(CHIP, 16)]},
     "bug": {"w": 16, "frames": [BUG, _shift_down(BUG, 16)]},
     "turtle": {"w": 16, "frames": [TURTLE, _shift_down(TURTLE, 16)]},

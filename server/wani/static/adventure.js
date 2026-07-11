@@ -5,7 +5,7 @@
 //   討伐 = 棒ごと下に引っ込む
 // タスク=敵の隊列(並び順はGitHub Projectの手動順)。Googleカレンダーの予定は
 // 時間になると「じかんまじん」として最前列に割り込む。
-import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=16";
+import { PALETTE, SPRITES, OBJECTS, SPRITE_W, SPRITE_H } from "./sprites.js?v=17";
 
 const $ = (id) => document.getElementById(id);
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -129,6 +129,8 @@ export function initAdventure(core) {
   let effects = [];
   let msg = "", msgUntil = 0;
   let knownEventKeys = new Set();
+  // ToDoモンスターの並び位置の記憶(key → 直前の敵のkey | null=先頭)
+  let todoAnchors = JSON.parse(localStorage.getItem("wani_todo_anchor") || "{}");
 
   const short = (s, n = 14) => (s.length > n ? s.slice(0, n) + "…" : s);
 
@@ -159,18 +161,30 @@ export function initAdventure(core) {
         type: enemyTypeFor(task),
         key: task.item_id, seed: hashStr(task.item_id),
       }));
-    // Google ToDo: 期限が今日以前(forced)は隊列の先頭へ問答無用で割り込み。
-    // 作戦会議で選んだ期限なしToDoは隊列の後ろに並ぶ
-    const todos = core.battleTodos().map((todo) => ({
+    // Google ToDo: 専用スプライト「チェックまる」。
+    // 期限付き(forced)は初登場時のみ先頭へ割り込み。ドラッグで並び替えたら
+    // その位置(直前の敵のkey)をアンカーとして記憶し、以後は尊重する
+    const todoActs = core.battleTodos().map((todo) => ({
       kind: "todo", todo,
-      type: ENEMY_TYPES[hashStr(todo.id) % ENEMY_TYPES.length],
+      type: "check",
       key: core.todoKey(todo), seed: hashStr(todo.id),
       forced: todo.forced,
     }));
-    const next = [...evs,
-                  ...todos.filter((t) => t.forced),
-                  ...tasks,
-                  ...todos.filter((t) => !t.forced)];
+    const ground = [...tasks];  // タスクはProject順が背骨
+    for (const ta of todoActs) {
+      if (Object.prototype.hasOwnProperty.call(todoAnchors, ta.key)) {
+        const after = todoAnchors[ta.key];
+        const idx = after === null ? -1 : ground.findIndex((g) => g.key === after);
+        if (after === null) ground.unshift(ta);
+        else if (idx >= 0) ground.splice(idx + 1, 0, ta);
+        else ground.push(ta);
+      } else if (ta.forced) {
+        ground.unshift(ta);   // 初登場の割り込み
+      } else {
+        ground.push(ta);
+      }
+    }
+    const next = [...evs, ...ground];
     // 位置は既存のものを引き継ぐ。タスクは右端から歩いて、予定は右上から飛んでくる
     const old = new Map(actors.map((a) => [a.key, a]));
     actors = next.map((a) => {
@@ -613,18 +627,21 @@ export function initAdventure(core) {
   canvas.addEventListener("pointerdown", (ev) => {
     const { x, y } = canvasPos(ev);
     const a = actorAt(x, y);
-    if (a && a.kind === "task" && !a.dying) {
-      pointer = { actor: a, startX: x, moved: false };
+    if (a && (a.kind === "task" || a.kind === "todo") && !a.dying) {
+      pointer = { actor: a, startClientX: ev.clientX, moved: false };
       canvas.setPointerCapture?.(ev.pointerId);
     } else {
-      pointer = { actor: a, startX: x, moved: false, tapOnly: true };
+      pointer = { actor: a, startClientX: ev.clientX, moved: false, tapOnly: true };
     }
   });
 
   canvas.addEventListener("pointermove", (ev) => {
     if (!pointer || pointer.tapOnly) return;
     const { x } = canvasPos(ev);
-    if (!pointer.moved && Math.abs(x - pointer.startX) < 12) return;
+    // タップ/ドラッグの判定はCSSピクセル基準(論理解像度は画面サイズで変わるため。
+    // 以前は論理px基準で、フルスクリーン時に閾値が実質数pxになりタップが
+    // ドラッグ扱いされて反応が悪かった)
+    if (!pointer.moved && Math.abs(ev.clientX - pointer.startClientX) < 12) return;
     pointer.moved = true;
     const a = pointer.actor;
     a.dragging = true;
@@ -644,7 +661,18 @@ export function initAdventure(core) {
       a.dragging = false;
       const ground = actors.filter((v) => !v.flying);
       const idx = ground.indexOf(a);
-      const afterId = idx > 0 ? ground[idx - 1].task.item_id : null;
+      if (a.kind === "todo") {
+        // ToDoの並びはローカル記憶(GitHubに順序の概念がないため)
+        todoAnchors[a.key] = idx > 0 ? ground[idx - 1].key : null;
+        localStorage.setItem("wani_todo_anchor", JSON.stringify(todoAnchors));
+        say("じんけいを いれかえた！");
+        return;
+      }
+      // タスクはGitHubの並び順に反映。直前の「タスク」を探す(ToDoは飛ばす)
+      let afterId = null;
+      for (let i = idx - 1; i >= 0; i--) {
+        if (ground[i].kind === "task") { afterId = ground[i].task.item_id; break; }
+      }
       try {
         await core.moveTask(a.task, afterId);
         say("じんけいを いれかえた！");
