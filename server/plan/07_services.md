@@ -49,6 +49,21 @@ services:
 | ボリューム | `/mnt/data:/data` |
 | 設定 | ユーザー認証あり、ゲスト無効 |
 
+### Navidrome（音楽ストリーミング）
+
+Spotify等の代替として、手持ち音源をセルフホストで広告なし・無料でストリーミング再生（2026-07-12追加）。
+
+| 項目 | 値 |
+|-----|---|
+| イメージ | `deluan/navidrome:latest`（ffmpeg同梱、Go製で軽量）|
+| ポート | `4533:4533`（Tailscale経由のみ、ufwで外部遮断）|
+| ボリューム | `${MUSIC_LOCATION:-/mnt/data/music}:/music:ro`（音源・読み取り専用）、`navidrome-data:/data`（DB・設定）|
+| API | Subsonic API 互換。スマホは対応アプリ（iOS: Amperfy/play:Sub、Android: Symfonium/DSub/Substreamer）、PCはブラウザ内蔵プレイヤー |
+| 音源の追加 | Samba（`smb://kokko-server-pavilion/data/music`）にコピー → `ND_SCANSCHEDULE=1h`で自動反映（即時は管理画面から手動スキャン）|
+| 認証 | 初回ブラウザアクセス時に管理者アカウントを画面で作成（`.env`に秘密情報なし）|
+| mem_limit | 384m（常時~80MBだが大規模ライブラリの初回スキャンで一時的に増える）|
+| 手順書 | `guide/15_音楽サーバー設定.md` |
+
 ### OpenWebUI
 
 | 項目 | 値 |

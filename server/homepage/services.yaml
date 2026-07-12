@@ -5,6 +5,12 @@
         siteMonitor: http://kokko-server-pavilion:2283
         icon: immich.png
 
+    - Navidrome:
+        href: http://kokko-server-pavilion:4533
+        description: 音楽ストリーミング
+        siteMonitor: http://kokko-server-pavilion:4533/ping
+        icon: navidrome.png
+
     - OpenWebUI:
         href: http://kokko-server-pavilion:3000
         description: AIチャット (Gemini)

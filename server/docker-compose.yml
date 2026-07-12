@@ -113,6 +113,43 @@ services:
     mem_limit: 128m
 
   # ================================================================
+  # Navidrome — セルフホスト音楽ストリーミング（Spotify代替、広告なし・無料）
+  # Subsonic API 互換。スマホは対応アプリ(Amperfy/play:Sub/Symfonium/DSub等)で、
+  # PCはブラウザ内蔵プレイヤーで再生。Tailscale経由のみ到達可(ufwで外部遮断)。
+  # アクセス: http://kokko-server-pavilion:4533
+  # 音源の置き場所: Samba(smb://kokko-server-pavilion/data/music)に放り込むと自動スキャン。
+  # ================================================================
+  navidrome:
+    container_name: navidrome
+    image: deluan/navidrome:latest
+    ports:
+      - "4533:4533"
+    # 音源はSambaと同じ/mnt/data配下。Navidromeが誤って書き換えないよう読み取り専用。
+    volumes:
+      - ${MUSIC_LOCATION:-/mnt/data/music}:/music:ro
+      - navidrome-data:/data
+    environment:
+      - TZ=Asia/Tokyo
+      - ND_MUSICFOLDER=/music
+      - ND_DATAFOLDER=/data
+      # ファイル追加を1時間ごとに自動反映。すぐ反映したい時はWeb UIの管理画面から手動スキャン可。
+      - ND_SCANSCHEDULE=1h
+      - ND_LOGLEVEL=info
+      # ジャケット画像はファイル埋め込み+フォルダ内画像から取得(外部APIに投げない)。
+      - ND_COVERARTPRIORITY=cover.*, folder.*, front.*, embedded
+      # モバイル回線用に低ビットレート再生(transcoding)を許可。ffmpeg同梱イメージなので追加不要。
+      - ND_ENABLETRANSCODINGCONFIG=true
+    restart: always
+    # Go製で常時は軽い(~80MB)が、大規模ライブラリ初回スキャン時に一時的に増える。
+    # 初回スキャンでOOMするようなら一時的に上げてよい(RAM事情はplan/09参照)。
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4533/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================================================
   # OpenWebUI — AIチャットUI（Gemini / Ollama 共通フロントエンド）
   # アクセス: http://kokko-server-pavilion:3000
   # ================================================================
@@ -357,3 +394,4 @@ volumes:
   openwebui-data:
   uptime-kuma-data:
   ollama-data:
+  navidrome-data:
