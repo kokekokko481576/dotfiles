@@ -1,0 +1,17 @@
+[Unit]
+Description=Auto Tagging Service for MP3 (album = folder name, for Navidrome)
+After=network.target
+# /mnt/data(/dev/sdb1) がマウントされてから起動する
+RequiresMountsFor=/mnt/data/music
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/bash /home/kokko/dotfiles/server/scripts/auto_tagger.sh
+User=kokko
+Group=kokko
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
