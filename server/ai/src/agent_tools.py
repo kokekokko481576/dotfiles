@@ -1,5 +1,5 @@
 """
-執事Bot用のエージェントツール定義 + ホスト実行エージェント(agent_executor.py)への接続クライアント。
+ワニ博士Bot用のエージェントツール定義 + ホスト実行エージェント(agent_executor.py)への接続クライアント。
 
 Botコンテナ自身にはホストのシェル・ファイルへの直接アクセスを持たせず、
 Unixソケット経由でこのプロトコルだけを叩かせることで、Discord/LLM API と直接やり取りする
@@ -153,6 +153,31 @@ TOOLS = [
                                 "description": "今日やるタスク番号のリスト"},
                 },
                 "required": ["numbers"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_calendar_event",
+            "description": (
+                "Googleカレンダーに予定を1件追加する(n8n経由)。こっこの勉強・作業の計画を"
+                "提案したうえで「カレンダーに追加しますか?」と尋ね、同意が得られたときに使う。"
+                "例: 『流体力学の過去問の復習』を明日14:00-16:00に登録。"
+                "実行前にDiscordでこっこの承認を必ず求める(この確認は自動で挟まる)。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "予定のタイトル(何をするか。簡潔に)"},
+                    "start": {"type": "string",
+                              "description": "開始日時。RFC3339(例 2026-07-19T14:00:00+09:00)。"
+                                             "終日予定なら日付のみ(例 2026-07-19)"},
+                    "end": {"type": "string",
+                            "description": "終了日時。startと同じ形式。終日なら翌日の日付"},
+                    "description": {"type": "string", "description": "詳細メモ(任意)"},
+                },
+                "required": ["summary", "start", "end"],
             },
         },
     },

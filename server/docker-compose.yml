@@ -250,6 +250,9 @@ services:
       # ホスト実行エージェント(scripts/agent_executor.py、systemdでkokkoユーザーとして常駐)との
       # Unixソケット通信用。詳細は plan/11_agent-control.md 参照
       - /mnt/data/ai/agent:/app/agent-socket
+      # 3Bot共通のユーザープロフィール/大日程(リポジトリ内の単一ソース。read-only)。
+      # 1箇所編集すれば task-agent/執事/ワニ 全部に反映される。
+      - ./context/profile.md:/app/profile.md:ro
     env_file: .env
     environment:
       - TZ=Asia/Tokyo
@@ -292,6 +295,8 @@ services:
       - GITHUB_STATUS_FIELD_NAME=${GITHUB_STATUS_FIELD_NAME:-Status}
     volumes:
       - /mnt/data/ai/wani:/app/data
+      # 3Bot共通のユーザープロフィール/大日程(リポジトリ内の単一ソース。read-only)
+      - ./context/profile.md:/app/profile.md:ro
     restart: unless-stopped
     mem_limit: 256m
 
@@ -326,6 +331,8 @@ services:
       - GITHUB_STATUS_FIELD_NAME=${GITHUB_STATUS_FIELD_NAME:-Status}
     volumes:
       - /mnt/data/ai/task-agent:/app/data
+      # 3Bot共通のユーザープロフィール/大日程(リポジトリ内の単一ソース。read-only)
+      - ./context/profile.md:/app/profile.md:ro
     depends_on:
       - ollama
     mem_limit: 256m

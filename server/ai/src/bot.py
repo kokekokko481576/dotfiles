@@ -1,6 +1,6 @@
 """
 Butler Bot — Phase 1
-Discord経由でGemini APIと会話する執事ボット。
+Discord経由でGemini APIと会話するワニ博士ボット。
 """
 import os
 import io
@@ -43,37 +43,68 @@ MAX_TOOL_ITERATIONS = 8
 # n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー、Google Calendar連携)。
 # 同じdocker composeネットワーク上のn8nサービスにコンテナ名で到達する（詳細: guide/06_n8n設定.md）。
 N8N_TODAY_SCHEDULE_URL = os.environ.get("N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+# n8nの「予定追加」ワークフロー(Webhookトリガー)。Googleカレンダーに予定を1件作成する。
+# 生成: scripts/n8n_calendar_workflows.py
+N8N_CALENDAR_ADD_URL = os.environ.get("N8N_CALENDAR_ADD_URL", "http://n8n:5678/webhook/calendar-add")
 # ワニ博士タスク管理アプリ(plan/13_wani-app.md)。タスク・気分の状態はここに一元化されていて、
 # PWA(スマホ)とこのBotのどちらから進捗を更新しても同じ状態が動く。
 WANI_API_URL = os.environ.get("WANI_API_URL", "http://wani:8090")
 CONFIRM_TIMEOUT_SEC = 300
 
 # ---- LLM設定（LiteLLM経由でVertex AIのGeminiを利用）----
-llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY)
+# timeout未指定だとopenaiのデフォルトは600秒(10分)。Vertexがたまにストールすると
+# Botが最大10分無応答で固まる(=「返事がない」の原因)ため、明示的に短く設定して
+# 詰まったら速やかにエラー応答を返す。max_retriesも抑え、最悪待ち時間を短くする。
+llm_client = AsyncOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_MASTER_KEY,
+                         timeout=60.0, max_retries=1)
 
 # キャラクターの口調はモデルの曖昧な知識やWeb検索に頼らず、このファイルで明示的に与える。
-PERSONA_FILE = Path(__file__).parent / "persona_whisper.md"
+PERSONA_FILE = Path(__file__).parent / "persona_wanihakase.md"
 PERSONA_STYLE = PERSONA_FILE.read_text(encoding="utf-8") if PERSONA_FILE.exists() else ""
 
+# 3Bot共通のユーザープロフィール/大日程(docker-composeで /app/profile.md にbind-mount)。
+# レコメンドのプロンプトに差し込む。未配置でも空文字で動く。
+PROFILE_FILE = Path(os.environ.get("PROFILE_FILE", "/app/profile.md"))
+PROFILE_TEXT = PROFILE_FILE.read_text(encoding="utf-8").strip() if PROFILE_FILE.exists() else ""
+
+# プロフィール・大日程は全てのbutlerのLLM呼び出し(会話・朝のブリーフィング)で
+# 文脈として効かせたいので、システムプロンプト本体に載せる。
+_PROFILE_BLOCK = (
+    f"\n\n## こっこについて(プロフィール・大日程。提案・優先順位づけの最重要の前提)\n{PROFILE_TEXT}\n"
+    if PROFILE_TEXT else ""
+)
 SYSTEM_INSTRUCTION = (
-    "あなたは「執事」です。ユーザー（主人）の生活・作業を能動的にサポートするAIエージェントです。\n"
+    "あなたは「ワニ博士」です。こっこ(ユーザー)の生活・作業を能動的にサポートするAIエージェントです。\n"
     "以下は口調・キャラクターの参考資料です。これに厳密に沿って話してください。\n\n"
     f"{PERSONA_STYLE}\n\n"
     "返答は簡潔にし、日本語で答えてください。"
+    f"{_PROFILE_BLOCK}"
 )
 AGENT_MODE_INSTRUCTION = (
-    "このメッセージの送信者は持ち主本人です。あなた(このBot)が動作しているサーバーホストは、"
-    "主人様が日常使っているPCそのものです。「クラウド上のAI」と「主人様のPC」を別物として扱わないでください、"
+    "このメッセージの送信者はこっこ本人です。あなた(このBot)が動作しているサーバーホストは、"
+    "こっこが日常使っているPCそのものです。「クラウド上のAI」と「こっこのPC」を別物として扱わないでください、"
     "同一のマシンです。あなたにはそのマシン上でシェルコマンドの実行・ファイルの読み書きを行う"
     "run_shell/read_file/write_file/list_dirツールに加え、今日の予定を調べるget_today_schedule、"
     "Web検索のweb_search、指定URLの内容を取得するfetch_url、タスク管理(GitHub Project連携の"
     "ワニ博士アプリ)のlist_tasks/update_task_statusツールが与えられています。"
     "タスクや進捗の話題ではlist_tasksを呼び、「〜終わった」「〜やった」という報告があれば"
-    "該当タスクをupdate_task_statusでDoneにして、ワニ博士の気分を主人様に伝えてください。"
+    "該当タスクをupdate_task_statusでDoneにして、ワニ博士の気分をこっこに伝えてください。"
+    "『今日/明日のおすすめ』『計画して』等を頼まれたら、次の手順で考えること。"
+    "(1) get_today_scheduleでその日のGoogleカレンダー予定を取得する。これは動かせない固定予定で、"
+    "その日は必ずこなす前提。まず予定と予定の合間の空き時間がどれだけあるかを見積もる。"
+    "(2) システムプロンプトの『こっこについて』(プロフィール・大日程)を最優先の判断基準にする。"
+    "今が院試・試験・大きな締切前などの繁忙期なら、その勉強/準備を空き時間の主役に据え、"
+    "それと無関係なGitHubタスク(例: はんだづけ・電子工作・研究以外の趣味)は原則すすめない。"
+    "(3) list_tasksは参照するが、そのまま全部並べるのではなく、今の時期にやるべきものだけを選ぶ。"
+    "適切なものが無ければ、その時期にふさわしい勉強タスクを自分で具体的に考え出して提案する"
+    "(例: 過去問の復習、間違えた範囲の深掘り学習)。各タスクに所要時間の目安を添える。"
+    "(4) 提案がまとまったら「Googleカレンダーに追加しますか?」と尋ね、"
+    "こっこが同意したら create_calendar_event で予定を登録する(空き時間に収まる日時を提案し、"
+    "最終的な時間はこっこに確認する。登録前に承認ダイアログが自動で出る)。"
     "権限の有無や動作確認を聞かれたときは、説明だけで済ませず、実際にread_file/list_dir/run_shell等の"
     "軽い読み取り系ツールを呼び出して、その実行結果を根拠に答えてください。調査・診断・設定変更を"
     "頼まれた場合も同様に積極的にツールを使ってください。破壊的、または元に戻せない可能性がある操作は"
-    "実行前にDiscordで持ち主の承認を求める仕組みが自動で挟まるので、あなたが遠慮したり"
+    "実行前にDiscordでこっこの承認を求める仕組みが自動で挟まるので、あなたが遠慮したり"
     "「権限がない」と過小に答えたりする必要はありません。"
 )
 
@@ -285,6 +316,26 @@ async def wani_create_task(title: str) -> str:
     return f"「{body['task']['title']}」をタスクに追加しました(Status: {body['task']['status']})。"
 
 
+async def create_calendar_event(summary: str, start: str, end: str, description: str = "") -> str:
+    """n8n経由でGoogleカレンダーに予定を1件追加する。"""
+    if not (summary and start and end):
+        return "（予定の追加に失敗: タイトル・開始・終了は必須です）"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                N8N_CALENDAR_ADD_URL,
+                json={"summary": summary, "start": start, "end": end, "description": description},
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    return f"（予定の追加に失敗しました: HTTP {resp.status} {text[:200]}）"
+    except Exception as e:
+        log.error(f"calendar add error: {e}")
+        return f"（予定の追加に失敗しました: {e}）"
+    return f"カレンダーに「{summary}」を追加しました({start} 〜 {end})。"
+
+
 async def wani_set_today(numbers: list[int]) -> str:
     """タスク番号のリストを「今日やるリスト」として設定する。"""
     try:
@@ -341,7 +392,7 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
 
             if name == "run_shell":
                 decision = agent_tools.classify_shell(args.get("command", ""))
-            elif name == "write_file":
+            elif name in ("write_file", "create_calendar_event"):
                 decision = "confirm"
             else:
                 decision = "auto"
@@ -364,6 +415,10 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                     result = {"ok": True, "output": await wani_list_tasks()}
                 elif name == "create_task":
                     result = {"ok": True, "output": await wani_create_task(args.get("title", ""))}
+                elif name == "create_calendar_event":
+                    result = {"ok": True, "output": await create_calendar_event(
+                        args.get("summary", ""), args.get("start", ""),
+                        args.get("end", ""), args.get("description", ""))}
                 elif name == "set_today_tasks":
                     result = {"ok": True, "output": await wani_set_today(
                         [int(n) for n in args.get("numbers", [])])}
@@ -409,7 +464,7 @@ async def on_ready():
     if CHANNEL_NOTIFY:
         ch = bot.get_channel(CHANNEL_NOTIFY)
         if ch:
-            await ch.send(f"執事が起動しました。({datetime.now().strftime('%Y-%m-%d %H:%M')})")
+            await ch.send(f"ワニ博士、起動したのだ! ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -467,11 +522,17 @@ async def on_message(message: discord.Message):
 # ---- 朝のデイリーブリーフィング（毎日8時）----
 async def suggest_today_tasks(schedule: str, tasks_text: str) -> str:
     """カレンダーの予定とタスク一覧をGeminiに渡し、今日のおすすめタスクを提案させる。"""
+    # プロフィール/大日程は SYSTEM_INSTRUCTION に既に含まれるのでここでは付けない。
     prompt = (
         f"今日の予定:\n{schedule}\n\n現在のタスク:\n{tasks_text}\n\n"
-        "上記を踏まえ、朝のブリーフィングとして「今日のおすすめタスク」を1〜3件提案してください。"
-        "予定の空き具合との相性を理由に一言添えること。waiting(他人待ち)とwish list(後回しBOX)は"
-        "原則すすめない(締切が近そうな場合のみ言及可)。全体で200字以内。"
+        "上記を踏まえ、朝のブリーフィングとして「今日のおすすめタスク」を提案してください。"
+        "提案は次を守ること:\n"
+        "・まず『こっこについて』の大日程・今の時期を最優先で考える。院試・試験・大きな締切前などの"
+        "繁忙期には、それと関係ないタスク(GitHub等)を無理に勧めず、その時期にやるべきことを軸にする"
+        "(おすすめ0〜1件でもよい)。\n"
+        "・各タスクの所要時間・重さと、今日の予定の空き具合との相性を理由に一言添える。\n"
+        "・waiting(他人待ち)とwish list(後回しBOX)は原則すすめない(締切が近そうな場合のみ言及可)。\n"
+        "全体で200字以内。"
     )
     try:
         response = await llm_client.chat.completions.create(
@@ -499,7 +560,7 @@ async def daily_briefing():
     tasks_text = await wani_list_tasks()
     suggestion = await suggest_today_tasks(schedule, tasks_text)
     msg = (
-        f"**おはようございます。{now.strftime('%Y年%m月%d日')}です。**\n\n"
+        f"**おはようなのだ、こっこ! {now.strftime('%Y年%m月%d日')}なのだ。**\n\n"
         f"**今日の予定**\n{schedule}\n\n"
         f"**タスク**\n{tasks_text}"
     )

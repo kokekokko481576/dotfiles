@@ -9,6 +9,8 @@ issue単位・返信単位に分解した逐次プロンプトにしている（
 """
 import json
 import logging
+import os
+from pathlib import Path
 
 import requests
 
@@ -17,6 +19,14 @@ import config
 log = logging.getLogger(__name__)
 
 _CHAT_URL = f"{config.OLLAMA_BASE_URL}/api/chat"
+
+# 3Bot共通のユーザープロフィール/大日程(docker-composeで /app/profile.md にbind-mount)。
+# まとめプロンプトに差し込み、大日程の締切等が優先度に効くようにする。未配置なら空文字。
+_PROFILE_FILE = Path(os.environ.get("PROFILE_FILE", "/app/profile.md"))
+try:
+    PROFILE_TEXT = _PROFILE_FILE.read_text(encoding="utf-8").strip()
+except OSError:
+    PROFILE_TEXT = ""
 
 
 def _chat_json(prompt: str) -> dict:
@@ -77,12 +87,20 @@ def generate_recommendation(items: list[dict]) -> dict:
         f"理由: {s.get('reason', '')})"
         for s in scored
     )
-    prompt = f"""以下は個別に優先度評価済みのissue一覧です（urgencyが高いほど優先度が高い）。
+    profile_block = f"""【あなたについて】
+{PROFILE_TEXT}
+
+""" if PROFILE_TEXT else ""
+    prompt = f"""{profile_block}以下は個別に優先度評価済みのissue一覧です（urgencyが高いほど優先度が高い）。
 
 {scored_text or '(現在オープンなissueはありません)'}
 
-これをラベル(research/personal/hobby:*)ごとにグルーピングし、urgencyが高いものを
-優先的に紹介する形で、Discordにそのまま投稿できるMarkdown形式のメッセージ文にしてください。
+上記のプロフィール・大日程を最優先で踏まえてください。もしプロフィールに院試・試験・
+大きな締切前などの繁忙期が書かれていて今がその時期なら、これらのGitHubタスクは無理に
+勧めず、「今は◯◯(その時期にやるべきこと)に集中を」と一言添えたうえで、緊急のものだけ
+簡潔に挙げるに留めてください。繁忙期でなければ、締切が近いもの・所要時間や重さも考慮しつつ、
+ラベル(research/personal/hobby:*)ごとにグルーピングし、urgencyが高いものを優先的に
+紹介する形で、Discordにそのまま投稿できるMarkdown形式のメッセージ文にしてください。
 全体は800字程度に収めてください。
 
 以下のJSON形式のみで出力してください（他のテキストは含めない）:

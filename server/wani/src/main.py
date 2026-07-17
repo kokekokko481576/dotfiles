@@ -58,6 +58,14 @@ N8N_TODO_COMPLETE_URL = os.environ.get(
     "N8N_TODO_COMPLETE_URL", "http://n8n:5678/webhook/todo-complete")
 EVENTS_CACHE_TTL = 300
 
+# 3Bot共通のユーザープロフィール/大日程(docker-composeで /app/profile.md にbind-mount)。
+# レコメンドのプロンプト冒頭に差し込む。未配置でも空文字で動く。
+PROFILE_FILE = Path(os.environ.get("PROFILE_FILE", "/app/profile.md"))
+try:
+    PROFILE_TEXT = PROFILE_FILE.read_text(encoding="utf-8").strip()
+except OSError:
+    PROFILE_TEXT = ""
+
 # 朝の作戦会議のレコメンド用LLM(LiteLLM経由のGemini、butler-botと同じ経路)。
 # キー未設定なら簡易ヒューリスティックにフォールバックする
 LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000/v1")
@@ -285,11 +293,18 @@ def _llm_recommend(active: list[dict], events: list[dict], now: datetime) -> dic
         f"- {'終日' if e['all_day'] else (e['start'] or '')[11:16]} {e['title']}"
         for e in events) or "(予定なし)"
     weekday = "月火水木金土日"[now.weekday()]
+    profile_block = f"## あなたについて\n{PROFILE_TEXT}\n\n" if PROFILE_TEXT else ""
     prompt = (
+        f"{profile_block}"
         f"今日は{now.strftime('%m月%d日')}({weekday}曜日)。\n"
         f"## 今日の予定\n{event_lines}\n\n## タスク一覧\n{task_lines}\n\n"
-        "この人が今日やるタスクを2〜4件選んでください。予定の空き時間との相性、"
-        "着手済み(In Progress/Review)の完遂優先、作業の重さのバランスを考慮すること。\n"
+        "この人が今日やるタスクを1〜4件選んでください。選ぶ際は次を守ること:\n"
+        "1. まず『あなたについて』の大日程・今の時期を最優先で考慮する。院試・試験・"
+        "大きな締切前などの繁忙期には、それと関係ない趣味/研究/GitHubタスクは無理に勧めず、"
+        "件数を絞る(0〜1件でもよい)。その時期に本当にやるべきことを軸にする。\n"
+        "2. 各タスクの所要時間・重さと、今日の予定の空き時間との相性を考える"
+        "(空きが少ない日に重いタスクを詰め込まない)。\n"
+        "3. 着手済み(In Progress/Review)は完遂を優先する。\n"
         "次のJSONだけを出力: {\"picks\": [{\"item_id\": \"...\", \"reason\": \"20字以内\"}], "
         "\"comment\": \"全体への励まし一言(40字以内)\"}"
     )
