@@ -28,10 +28,12 @@ GITHUB_PROJECT_OWNER_TYPE = os.environ.get("GITHUB_PROJECT_OWNER_TYPE", "organiz
 GITHUB_PROJECT_NUMBER = int(_require("GITHUB_PROJECT_NUMBER"))
 GITHUB_STATUS_FIELD_NAME = os.environ.get("GITHUB_STATUS_FIELD_NAME", "Status")
 
-# ---- Discord ----
+# ---- Discord (Optional) ----
 # task-agent専用のBot（butler-botとは別）。取得手順: guide/12_タスク管理エージェント設定.md
-DISCORD_TOKEN = _require("DISCORD_TOKEN")
-DISCORD_CHANNEL_ID = _require("DISCORD_CHANNEL_ID")
+# Discord Botが不要な場合は、環境変数を設定しなくても利用可能。
+# ただし、DISCORD_TOKENを設定するとDISCORD_CHANNEL_IDも必須となる。
+DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
+DISCORD_CHANNEL_ID = os.environ.get("DISCORD_CHANNEL_ID")
 
 # ---- Ollama（自宅サーバー上のローカルLLM。定例タスクで緊急性がないため採用）----
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")

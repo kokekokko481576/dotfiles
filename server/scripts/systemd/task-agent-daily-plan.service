@@ -1,0 +1,13 @@
+[Unit]
+Description=Task Agent - Generate Daily Plan for Wani
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# server/ ディレクトリで docker compose run を実行
+# User=kokko のホームディレクトリを想定
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/docker compose --profile task-agent run --rm task-agent-daily-plan
+User=kokko
+Group=kokko

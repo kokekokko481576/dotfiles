@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Task Agent Daily Plan Generator every day at 4am
+
+[Timer]
+# 毎日 AM 4:00 に実行
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
