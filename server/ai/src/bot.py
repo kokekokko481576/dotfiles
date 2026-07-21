@@ -115,6 +115,29 @@ AGENT_MODE_INSTRUCTION = (
     "「権限がない」と過小に答えたりする必要はありません。"
 )
 
+# 夜間(task-agent daily-plan)が生成した当日プラン。butlerの朝ブリーフィングもこれを読んで、
+# その場でLLMを呼ばずに使い回す(wani/Discordレコメンドと同じ「夜1回生成→読むだけ」)。
+# docker-composeで /mnt/data/ai/wani を /app/wani にread-onlyマウント。
+WANI_DATA_DIR = Path(os.environ.get("WANI_DATA_DIR", "/app/wani"))
+
+
+def load_daily_plan_text() -> str | None:
+    """当日のdaily_plan.jsonを朝ブリーフィング用テキストに整形する。無い/当日分でないならNone。"""
+    try:
+        plan = json.loads((WANI_DATA_DIR / "daily_plan.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if plan.get("date") != datetime.now().strftime("%Y-%m-%d"):
+        return None
+    comment = (plan.get("comment") or "").strip()
+    lines = [comment] if comment else []
+    for p in plan.get("picks", []):
+        num = f"#{p['number']} " if p.get("number") else ""
+        reason = f" — {p['reason']}" if p.get("reason") else ""
+        lines.append(f"・{num}{p.get('title', '')}{reason}")
+    return "\n".join(lines) if lines else None
+
+
 # 会話履歴の読み込み / 保存
 HISTORY_FILE = CONTEXT_DIR / "conversation_history.json"
 
@@ -652,7 +675,10 @@ async def daily_briefing():
     now = datetime.now()
     schedule = await fetch_today_schedule()
     tasks_text = await wani_list_tasks()
-    suggestion = await suggest_today_tasks(schedule, tasks_text)
+    # まず夜間に生成済みの当日プランを使う(LLM再呼び出しを節約)。無ければその場でLLM生成。
+    suggestion = load_daily_plan_text()
+    if not suggestion:
+        suggestion = await suggest_today_tasks(schedule, tasks_text)
     msg = (
         f"**おはようなのだ、こっこ! {now.strftime('%Y年%m月%d日')}なのだ。**\n\n"
         f"**今日の予定**\n{schedule}\n\n"
