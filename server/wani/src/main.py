@@ -66,6 +66,42 @@ try:
 except OSError:
     PROFILE_TEXT = ""
 
+# 大日程・学習メモ(docker-composeで /app/context に /mnt/data/ai/context をbind-mount)。
+# major_events = 院試/締切などの重要イベント、learned_prefs = 週次蒸留した本人の傾向。
+# task-agentの夜間ジョブと同じソースをライブ生成でも読むことで、レコメンドの前提を揃える。
+CONTEXT_DIR = Path(os.environ.get("CONTEXT_DIR", "/app/context"))
+DAILY_PLAN_FILE = DATA_DIR / "daily_plan.json"
+
+
+def _load_major_events(now: datetime) -> str:
+    """前月〜先2ヶ月のmajor_eventsを読む(task-agentのllm_clientと同じ挙動)。
+    これから来る締切(院試・論文等)こそ優先付けに効くので、未来側を含める。"""
+    base = CONTEXT_DIR / "major_events"
+    if not base.is_dir():
+        return ""
+    targets = set()
+    for offset in (-1, 0, 1, 2):  # 前月〜先2ヶ月
+        m = now.month + offset
+        y = now.year + (m - 1) // 12
+        mm = (m - 1) % 12 + 1
+        targets.add(f"{y}_{mm:02d}_major_events.md")
+    out = []
+    for root, _, files in os.walk(base):
+        for name in files:
+            if name in targets:
+                try:
+                    out.append((Path(root) / name).read_text(encoding="utf-8").strip())
+                except OSError:
+                    pass
+    return "\n\n".join(out)
+
+
+def _load_learned_prefs() -> str:
+    try:
+        return (CONTEXT_DIR / "learned_prefs.md").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
 # 朝の作戦会議のレコメンド用LLM(LiteLLM経由のGemini、butler-botと同じ経路)。
 # キー未設定なら簡易ヒューリスティックにフォールバックする
 LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://litellm:4000/v1")
@@ -243,6 +279,8 @@ def complete_todo(todo_id: str):
     """Google ToDoを完了にする(=モンスター討伐)。気分+18、討伐数に記録。"""
     global _todos_at
     now = datetime.now()
+    # 完了処理でソースから消える前にタイトルを控える(実績記録用)。
+    todo_title = next((t["title"] for t in fetch_todos() if t["id"] == todo_id), None)
     if source.mock:
         todos = store.load_mock_todos()
         if not any(t["id"] == todo_id for t in todos):
@@ -264,8 +302,36 @@ def complete_todo(todo_id: str):
         store.save_today(today)
 
     state = mood.apply_event(store.load_state(), "done", now)
+    _record_done_item(state, now.strftime("%Y-%m-%d"), {
+        "item_id": f"todo:{todo_id}", "title": todo_title or todo_id,
+        "repo": "Google ToDo", "labels": [],
+    })
     store.save_state(state)
     return {"ok": True, "event": "done", "mood": mood.summary(state, now)}
+
+
+# ---- 完了タスクの実績記録(レコメンド自己強化ループ用) ----
+# Doneにするとタスクは翌朝GitHubのopen一覧から消え、labels/repoを引けなくなる。
+# そのため完了した「その瞬間」に item_id・タイトル・repo・labels をスナップショットして
+# wani_state.json の history[date].done_items に残す。翌朝task-agentがこれを回収し、
+# 週次蒸留でカテゴリ(院試勉強/研究/研究室の雑務/アルバイト/趣味…)ごとの傾向を学習する。
+def _record_done_item(state: dict, day_str: str, task: dict) -> None:
+    day = state["history"].setdefault(day_str, {"done": 0, "started": 0})
+    items = day.setdefault("done_items", [])
+    if any(i.get("item_id") == task.get("item_id") for i in items):
+        return
+    items.append({
+        "item_id": task.get("item_id"),
+        "title": task.get("title"),
+        "repo": task.get("repo"),
+        "labels": task.get("labels") or [],
+    })
+
+
+def _unrecord_done_item(state: dict, day_str: str, item_id: str) -> None:
+    day = state["history"].get(day_str)
+    if day and day.get("done_items"):
+        day["done_items"] = [i for i in day["done_items"] if i.get("item_id") != item_id]
 
 
 # ---- 朝の作戦会議(今日やるリスト) ----
@@ -281,7 +347,8 @@ def _active_tasks(tasks):
 def _heuristic_recommend(active: list[dict]) -> dict:
     picks = [{"item_id": t["item_id"], "reason": "隊列の前のほうにいたので"}
              for t in active[:3]]
-    return {"picks": picks, "comment": "(LLM未設定のため先頭から選びました)"}
+    return {"picks": picks, "comment": "(LLM未設定のため先頭から選びました)",
+            "source": "heuristic"}
 
 
 def _llm_recommend(active: list[dict], events: list[dict], now: datetime) -> dict:
@@ -294,8 +361,12 @@ def _llm_recommend(active: list[dict], events: list[dict], now: datetime) -> dic
         for e in events) or "(予定なし)"
     weekday = "月火水木金土日"[now.weekday()]
     profile_block = f"## あなたについて\n{PROFILE_TEXT}\n\n" if PROFILE_TEXT else ""
+    events_md = _load_major_events(now)
+    events_ctx = f"## 大日程・重要イベント(最優先で考慮)\n{events_md}\n\n" if events_md else ""
+    prefs = _load_learned_prefs()
+    prefs_ctx = f"## 過去の実績から学習したこの人の傾向(できるだけ従う)\n{prefs}\n\n" if prefs else ""
     prompt = (
-        f"{profile_block}"
+        f"{profile_block}{events_ctx}{prefs_ctx}"
         f"今日は{now.strftime('%m月%d日')}({weekday}曜日)。\n"
         f"## 今日の予定\n{event_lines}\n\n## タスク一覧\n{task_lines}\n\n"
         "この人が今日やるタスクを1〜4件選んでください。選ぶ際は次を守ること:\n"
@@ -328,9 +399,39 @@ def _llm_recommend(active: list[dict], events: list[dict], now: datetime) -> dic
     return {"picks": picks, "comment": str(data.get("comment", ""))[:60]}
 
 
+def _nightly_plan(active: list[dict], today_str: str) -> dict | None:
+    """task-agentが夜間(4時)に生成した当日のdaily_plan.jsonを返す。
+
+    大日程・学習メモを踏まえてローカルLLMが前もって選んでおいたプランをそのまま
+    朝の作戦会議に出す(ライブGemini呼び出しの待ち時間ゼロ)。当日分でない/picksが
+    現在のアクティブタスクに解決できない場合はNone(→ライブ生成にフォールバック)。
+    """
+    try:
+        plan = json.loads(DAILY_PLAN_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if plan.get("date") != today_str:
+        return None  # 当日分でない → ライブ生成へ
+    valid_ids = {t["item_id"] for t in active}
+    orig_picks = plan.get("picks", [])
+    picks = [{"item_id": p["item_id"], "reason": p.get("reason", "")}
+             for p in orig_picks if p.get("item_id") in valid_ids][:4]
+    # 元々提案があったのに全部解決できない(=朝までに完了/クローズされた)ならライブへ。
+    # 一方、元から0件(繁忙期にモデルが意図的に「今日はやらない」と判断)なら、その0件と
+    # commentをそのまま尊重して見せる。
+    if orig_picks and not picks:
+        return None
+    return {"picks": picks, "comment": str(plan.get("comment", ""))[:80],
+            "source": "nightly"}
+
+
 @app.post("/api/today/recommend")
 def recommend_today():
-    """Geminiが今日やるタスクを提案する(保存はしない)。"""
+    """今日やるタスクを提案する(保存はしない)。
+
+    優先順: (1)夜間にtask-agentが生成した当日プラン → (2)ライブGemini →
+    (3)ヒューリスティック。いずれも大日程・学習メモを前提にしている。
+    """
     now = datetime.now()
     try:
         tasks = source.list_tasks()
@@ -343,10 +444,16 @@ def recommend_today():
                for t in fetch_todos() if not t["due"]]
     if not active:
         return {"picks": [], "comment": "アクティブなタスクがありません"}
+    # (1) 夜間プランがあればそれを表示(大日程・学習メモ反映済み・待ち時間ゼロ)
+    nightly = _nightly_plan(active, now.strftime("%Y-%m-%d"))
+    if nightly:
+        return nightly
     if not LITELLM_MASTER_KEY:
         return _heuristic_recommend(active)
     try:
-        return _llm_recommend(active, fetch_today_events(), now)
+        result = _llm_recommend(active, fetch_today_events(), now)
+        result["source"] = "live"
+        return result
     except Exception as e:
         log.warning("LLMレコメンド失敗、ヒューリスティックで代替: %s", e)
         result = _heuristic_recommend(active)
@@ -462,11 +569,17 @@ def update_status(item_id: str, body: StatusUpdate):
         event = "started"  # Reviewまで進めたのも「前進」として扱う
 
     now = datetime.now()
+    day_str = now.strftime("%Y-%m-%d")
     state = store.load_state()
     if event:
         state = mood.apply_event(state, event, now)
     else:
         state = mood.apply_decay(state, now)
+    # 完了/取り消しを実績として記録(labels/repoも一緒にスナップショット)
+    if event == "done":
+        _record_done_item(state, day_str, result["task"])
+    elif event == "undone":
+        _unrecord_done_item(state, day_str, item_id)
     store.save_state(state)
 
     return {

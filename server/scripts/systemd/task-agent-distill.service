@@ -1,0 +1,11 @@
+[Unit]
+Description=Task Agent - 週次: レコメンド実績を蒸留してlearned_prefs.mdを更新
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kokko/dotfiles/server
+ExecStart=/usr/bin/docker compose --profile task-agent run --rm task-agent-distill
+User=kokko
+Group=kokko

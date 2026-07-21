@@ -253,7 +253,11 @@ async function openPlanning() {
         checked.add(p.item_id);
         reasons.set(p.item_id, p.reason);
       }
-      comment.textContent = `🐊 ${rec.comment || "このあたりはどうでしょう。"}`;
+      // source: nightly=夜間に大日程/学習メモ込みで下ごしらえ済み, live=その場でGemini生成
+      const badge = { nightly: "🌙 昨夜の下ごしらえ", live: "✨ いま考えた案",
+                      heuristic: "" }[rec.source] || "";
+      const body = rec.comment || "このあたりはどうでしょう。";
+      comment.textContent = `🐊 ${badge ? badge + " — " : ""}${body}`;
       renderList();
     } catch (e) {
       comment.textContent = `提案の取得に失敗しました(自分で選んでください): ${e.message}`;

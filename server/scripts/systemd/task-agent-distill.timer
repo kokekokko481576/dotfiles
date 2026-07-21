@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Task Agent 学習メモ蒸留 weekly (毎週月曜 AM 3:30)
+
+[Timer]
+# 毎週月曜 AM 3:30。日次プラン生成(4:00)より前に走らせ、当日から最新の学習メモを効かせる
+OnCalendar=Mon *-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
