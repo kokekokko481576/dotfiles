@@ -201,6 +201,8 @@ services:
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/vertex-sa.json
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      # DeepSeek(config.yamlのdeepseek-*モデル用)。未設定なら空で、呼ばれてもfallbackでGeminiへ
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     restart: always
     mem_limit: 1536m
@@ -260,6 +262,11 @@ services:
       # n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー)。
       # 同じdocker composeネットワーク上なのでサービス名で到達できる（詳細: guide/06_n8n設定.md）。
       - N8N_TODAY_SCHEDULE_URL=http://n8n:5678/webhook/today-schedule
+      # 会話モデル。既定はGemini。DeepSeek導入時は server/.env に DEEPSEEK_API_KEY を入れ
+      # BUTLER_LLM_MODEL=deepseek-chat にするとDeepSeekへ切替(litellm経由、失敗時はGemini)。
+      - LLM_MODEL=${BUTLER_LLM_MODEL:-gemini-2.5-flash-vertex}
+      # 送る会話履歴の上限メッセージ数(読み過ぎ抑制)。未設定なら bot.py の既定
+      - HISTORY_MAX_MESSAGES=${HISTORY_MAX_MESSAGES:-16}
     restart: unless-stopped
     mem_limit: 256m
     profiles:

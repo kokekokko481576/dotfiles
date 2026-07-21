@@ -6,6 +6,7 @@ import os
 import io
 import json
 import asyncio
+import difflib
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -39,6 +40,12 @@ DISCORD_OWNER_ID    = int(os.environ["DISCORD_OWNER_ID"]) if os.environ.get("DIS
 AGENT_SOCKET_PATH   = os.environ.get("AGENT_SOCKET_PATH", "/app/agent-socket/butler-agent.sock")
 AGENT_AUDIT_LOG     = CONTEXT_DIR / "agent_audit.jsonl"
 MAX_TOOL_ITERATIONS = 8
+# LLMに毎回送る会話履歴の上限メッセージ数。以前は直近40件を丸ごと送っていて読み過ぎ
+# だった。逆に少なすぎると「直前に何をしたか」を忘れるので、各ターンのツール実行を
+# 要約してhistoryに残す(下記 actions)ことで、少ない件数でも行動の記憶は保つ。
+HISTORY_MAX_MESSAGES = int(os.environ.get("HISTORY_MAX_MESSAGES", "16"))
+# 履歴ファイルに保持する最大件数(送信数とは別。ローテーション用)。
+HISTORY_KEEP_MESSAGES = int(os.environ.get("HISTORY_KEEP_MESSAGES", "100"))
 
 # n8nの「毎朝ブリーフィング_今日の予定取得」ワークフロー(Webhookトリガー、Google Calendar連携)。
 # 同じdocker composeネットワーク上のn8nサービスにコンテナ名で到達する（詳細: guide/06_n8n設定.md）。
@@ -114,7 +121,7 @@ HISTORY_FILE = CONTEXT_DIR / "conversation_history.json"
 def load_history() -> list:
     if HISTORY_FILE.exists():
         try:
-            history = json.loads(HISTORY_FILE.read_text())[-40:]  # 直近40件
+            history = json.loads(HISTORY_FILE.read_text())[-HISTORY_MAX_MESSAGES:]
             # 旧Gemini形式(role="model")のログをOpenAI形式(role="assistant")に変換
             for h in history:
                 if h.get("role") == "model":
@@ -124,8 +131,28 @@ def load_history() -> list:
             return []
     return []
 
+
+def history_to_messages(history: list) -> list:
+    """保存済み履歴をLLM用メッセージ列に変換する。
+
+    各assistantターンに actions(そのターンで実行したツールの短い要約)が残っていれば、
+    メッセージ本文に「〔このターンで実行: ...〕」として畳み込む。こうすると少ない履歴
+    件数でも「さっき何を実行/承認したか」をモデルが思い出せる(実行済みの確認をまた
+    聞き返す鈍い挙動を防ぐ)。
+    """
+    out = []
+    for h in history:
+        content = h.get("text", "")
+        actions = h.get("actions")
+        if actions:
+            content = f"{content}\n〔このターンで実行: {' / '.join(actions)}〕".strip()
+        out.append({"role": h["role"], "content": content})
+    return out
+
+
 def save_history(history: list) -> None:
-    HISTORY_FILE.write_text(json.dumps(history[-100:], ensure_ascii=False, indent=2))
+    HISTORY_FILE.write_text(
+        json.dumps(history[-HISTORY_KEEP_MESSAGES:], ensure_ascii=False, indent=2))
 
 # ---- エージェントツール実行の監査ログ ----
 def log_audit(event: dict) -> None:
@@ -137,15 +164,47 @@ def log_audit(event: dict) -> None:
         log.exception("audit log write failed")
 
 
+async def _read_file_via_agent(path: str) -> str:
+    """agent executor経由でファイル内容を読む(差分表示用。読めなければ空文字)。"""
+    try:
+        res = await agent_tools.execute_tool(AGENT_SOCKET_PATH, "read_file", {"path": path})
+        if res.get("ok"):
+            return res.get("output") or ""
+    except Exception:
+        log.exception("diff用のread_fileに失敗")
+    return ""
+
+
+def _render_write_diff(path: str, old: str, new: str, limit: int = 1500) -> str:
+    """write_fileの新旧内容の差分をDiscordの ```diff ブロックにする(色付き表示)。"""
+    diff = difflib.unified_diff(
+        old.splitlines(), new.splitlines(),
+        fromfile=f"a/{path}", tofile=f"b/{path}", lineterm="")
+    body = "\n".join(diff)
+    if not body:
+        return f"(内容に変更なし: `{path}`)"
+    truncated = ""
+    if len(body) > limit:
+        body = body[:limit]
+        truncated = "\n… (差分が長いため省略)"
+    return f"```diff\n{body}{truncated}\n```"
+
+
 async def request_confirmation(channel, requester, tool_name: str, args: dict) -> bool:
     """破壊的な可能性があるツール呼び出しについて、Discordのリアクションで持ち主の承認を取る。"""
     if tool_name == "write_file":
-        preview = f"path: {args.get('path', '')}\n---content---\n{args.get('content', '')}"
+        # 全文べた貼りではなく、既存ファイルとの差分を色付き(```diff)で見せる
+        path = args.get("path", "")
+        old = await _read_file_via_agent(path)
+        new = args.get("content", "")
+        verb = "新規作成" if not old else "編集"
+        detail = f"path: `{path}` ({verb})\n{_render_write_diff(path, old, new)}"
     else:
         preview = args.get("command") or args.get("path") or ""
+        detail = f"```\n{preview[:1500]}\n```"
     try:
         msg = await channel.send(
-            f"⚠️ **承認が必要な操作**\nツール: `{tool_name}`\n内容:\n```\n{preview[:1500]}\n```\n"
+            f"⚠️ **承認が必要な操作**\nツール: `{tool_name}`\n内容:\n{detail}\n"
             f"{requester.mention} {CONFIRM_TIMEOUT_SEC // 60}分以内に ✅(承認) / ❌(却下) でリアクションしてください。"
         )
         await msg.add_reaction("✅")
@@ -364,8 +423,37 @@ async def wani_set_today(numbers: list[int]) -> str:
     return f"今日やるリストを設定しました: {titles or '(空)'}"
 
 
-async def run_agent_turn(channel, requester, messages: list) -> str:
-    """ツール呼び出し込みでLLMと対話し、最終的なテキスト返答を返す。"""
+def _action_label(name: str, args: dict, approved: bool, result: dict) -> str:
+    """このターンで実行したツールの短い要約(履歴に残して行動の記憶にする)。"""
+    if not approved:
+        return f"{name}(却下)"
+    if name in ("write_file", "read_file"):
+        a = args.get("path", "")
+    elif name == "run_shell":
+        a = (args.get("command", "") or "")[:40]
+    elif name == "update_task_status":
+        a = f"#{args.get('number')} {args.get('status', '')}" if args.get("number") \
+            else f"{args.get('title', '')} {args.get('status', '')}"
+    elif name == "create_calendar_event":
+        a = args.get("summary", "")
+    elif name == "create_task":
+        a = args.get("title", "")
+    elif name == "set_today_tasks":
+        a = str(args.get("numbers", ""))
+    else:
+        a = ""
+    ok = "ok" if result.get("ok") else "失敗"
+    return f"{name}({a})→{ok}" if a else f"{name}→{ok}"
+
+
+async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]:
+    """ツール呼び出し込みでLLMと対話する。
+
+    戻り値: (最終テキスト返答, このターンで実行したツールの要約リスト)。
+    要約は呼び出し側で会話履歴に残され、次ターン以降に「さっき何をしたか」を
+    思い出す手がかりになる。
+    """
+    actions: list[str] = []
     for _ in range(MAX_TOOL_ITERATIONS):
         response = await llm_client.chat.completions.create(
             model=LLM_MODEL,
@@ -375,7 +463,7 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
         choice = response.choices[0].message
         tool_calls = choice.tool_calls or []
         if not tool_calls:
-            return choice.content or ""
+            return choice.content or "", actions
 
         messages.append({
             "role": "assistant",
@@ -441,6 +529,7 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                 "approved": approved,
                 "ok": result.get("ok"),
             })
+            actions.append(_action_label(name, args, approved, result))
 
             messages.append({
                 "role": "tool",
@@ -448,7 +537,7 @@ async def run_agent_turn(channel, requester, messages: list) -> str:
                 "content": (result.get("output") or "")[:4000],
             })
 
-    return "ツール呼び出しの上限に達したため処理を中断しました。"
+    return "ツール呼び出しの上限に達したため処理を中断しました。", actions
 
 # ---- Discord Bot 設定 ----
 intents = discord.Intents.default()
@@ -489,11 +578,12 @@ async def on_message(message: discord.Message):
         history = load_history()
         system_content = SYSTEM_INSTRUCTION + (f" {AGENT_MODE_INSTRUCTION}" if agent_enabled else "")
         messages = [{"role": "system", "content": system_content}]
-        messages += [{"role": h["role"], "content": h["text"]} for h in history]
+        messages += history_to_messages(history)
         messages.append({"role": "user", "content": content})
+        actions: list = []
         try:
             if agent_enabled:
-                reply = await run_agent_turn(message.channel, message.author, messages)
+                reply, actions = await run_agent_turn(message.channel, message.author, messages)
             else:
                 response = await llm_client.chat.completions.create(
                     model=LLM_MODEL,
@@ -504,9 +594,13 @@ async def on_message(message: discord.Message):
             log.error(f"LLM API error: {e}")
             reply = f"エラーが発生しました: {e}"
 
-        # 履歴保存
-        history.append({"role": "user",      "text": content})
-        history.append({"role": "assistant", "text": reply})
+        # 履歴保存。assistantターンには実行したツールの要約(actions)も残し、
+        # 次ターンで「さっき実行/承認したこと」を思い出せるようにする。
+        history.append({"role": "user", "text": content})
+        assistant_entry = {"role": "assistant", "text": reply}
+        if actions:
+            assistant_entry["actions"] = actions
+        history.append(assistant_entry)
         save_history(history)
 
     # 長い返答はファイル添付（以前はメッセージを切り詰めるだけで、実際には添付ファイルを

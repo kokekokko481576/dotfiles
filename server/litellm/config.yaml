@@ -9,6 +9,17 @@ model_list:
       model: vertex_ai/gemini-2.5-pro
       vertex_project: uoo-ship-project
       vertex_location: us-central1
+  # DeepSeek(OpenAI互換)。執事Discord bot・CLIで使う。api_keyはlitellmコンテナの
+  # 環境変数 DEEPSEEK_API_KEY から読む(docker-compose.ymlで渡す)。キー未設定の間は
+  # 呼び出しが失敗するが、下のfallbacksでGeminiに自動で流れるので全体は壊れない。
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+  - model_name: deepseek-reasoner
+    litellm_params:
+      model: deepseek/deepseek-reasoner
+      api_key: os.environ/DEEPSEEK_API_KEY
 
 litellm_settings:
   drop_params: true
@@ -18,5 +29,8 @@ litellm_settings:
   request_timeout: 30
   # flashが429(分間レート超過)になったら、別quotaのpro(Vertex)へ自動で切り替える。
   # ※AI Studio(gemini/)版はキーが枯渇済みのためフォールバック先に入れていない。
+  # DeepSeekはキー未設定/障害時にGeminiへ逃がす(導入前でもbotが止まらないように)。
   fallbacks:
     - gemini-2.5-flash-vertex: ["gemini-2.5-pro-vertex"]
+    - deepseek-chat: ["gemini-2.5-flash-vertex"]
+    - deepseek-reasoner: ["gemini-2.5-pro-vertex"]
