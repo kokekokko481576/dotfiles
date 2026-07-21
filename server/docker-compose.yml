@@ -442,6 +442,30 @@ services:
       - task-agent
 
   # ================================================================
+  # CouchDB — Obsidian LiveSync のバックエンド(guide/16)。
+  # 通常起動には含めず、`docker compose --profile obsidian up -d couchdb` で有効化する。
+  # スマホからは wani/n8n と同様に tailscale serve 経由(HTTPS)で到達させる。
+  # ================================================================
+  couchdb:
+    container_name: couchdb
+    image: couchdb:3
+    environment:
+      - COUCHDB_USER=${COUCHDB_USER:-obsidian}
+      # ★必ず server/.env で強いパスワードに変更すること(既定値のままにしない)
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-obsidian-change-me}
+    volumes:
+      - /mnt/data/ai/couchdb:/opt/couchdb/data
+      # CORS等の設定(read-only)。管理者は上のenvから作られ別ファイルに書かれる
+      - ./couchdb/local.ini:/opt/couchdb/etc/local.d/10-livesync.ini:ro
+    ports:
+      # tailscale serveの中継先。tailnet外に晒さないようloopbackのみにバインド
+      - "127.0.0.1:5984:5984"
+    restart: unless-stopped
+    mem_limit: 512m
+    profiles:
+      - obsidian
+
+  # ================================================================
   # Uptime Kuma — サービス死活監視（軽量）
   # アクセス: http://kokko-server-pavilion:3001
   # ================================================================
