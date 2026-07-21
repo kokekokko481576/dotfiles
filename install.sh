@@ -12,7 +12,7 @@ echo -e "${COLOR_BLUE}================================${COLOR_RESET}"
 check_dependencies() {
     log_info "必要なパッケージをチェック中..."
     
-    deps=("zsh" "git" "curl" "tmux") # tmuxも追加
+    deps=("zsh" "git" "curl" "tmux" "mosh") # mosh: Wi-Fi切替/一時切断に強いSSH代替(guide/17)
     to_install=()
 
     for dep in "${deps[@]}"; do
