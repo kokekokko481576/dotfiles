@@ -697,12 +697,20 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+GUILD_OBJ = discord.Object(id=DISCORD_GUILD_ID)  # スラッシュコマンドをこのギルドに即時同期する
 
 @bot.event
 async def on_ready():
     log.info(f"Butler Bot 起動: {bot.user} (ID: {bot.user.id})")
     if not daily_briefing.is_running():
         daily_briefing.start()
+    # スラッシュコマンドをギルドに同期(ギルド単位は即時反映。グローバルは反映に最大1時間)
+    try:
+        bot.tree.copy_global_to(guild=GUILD_OBJ)
+        synced = await bot.tree.sync(guild=GUILD_OBJ)
+        log.info("スラッシュコマンド同期: %d件 %s", len(synced), [c.name for c in synced])
+    except Exception:
+        log.exception("スラッシュコマンドの同期に失敗(applications.commandsスコープで再招待が必要かも)")
     # 起動通知
     if CHANNEL_NOTIFY:
         ch = bot.get_channel(CHANNEL_NOTIFY)
@@ -832,24 +840,40 @@ async def before_briefing():
     await sleep((target - now).total_seconds())
 
 # ---- コマンド ----
-@bot.command(name="status")
-async def status(ctx):
-    """サーバー状態を表示"""
-    import shutil
-    # butler-bot コンテナには /mnt/data/ai/context のみが /app/context としてマウントされている
-    # （/mnt/data 自体はマウントされていないため、以前はここが常にNoneになっていた）
-    disk = shutil.disk_usage(CONTEXT_DIR) if CONTEXT_DIR.exists() else None
-    msg = "**サーバー状態**\n"
-    if disk:
-        used_gb  = disk.used  / (1024**3)
-        total_gb = disk.total / (1024**3)
-        pct      = disk.used  / disk.total * 100
-        msg += f"・保存領域(会話履歴等): {used_gb:.1f} GB / {total_gb:.1f} GB ({pct:.1f}%)\n"
-    msg += f"・エージェントモード: {'有効' if DISCORD_OWNER_ID else '無効(DISCORD_OWNER_ID未設定)'}\n"
-    msg += f"・現在時刻: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    await ctx.send(msg)
+# ---- スラッシュコマンド(/) ----
+# `!`プレフィックスは覚えにくいので、入力時に候補が出るスラッシュコマンドに統一。
+# 承認は絵文字リアクションでなくボタンUI(discordネイティブで分かりやすい)。
 
-# ---- ヘルスチェック（読み取り専用の診断。docker.sock等のホスト権限は使わない）----
+class ConfirmView(discord.ui.View):
+    """✅登録する / ❌中止 のボタン。押せるのは本人のみ。押下後はボタンを無効化する。"""
+
+    def __init__(self, author_id: int, on_confirm):
+        super().__init__(timeout=CONFIRM_TIMEOUT_SEC)
+        self.author_id = author_id
+        self.on_confirm = on_confirm
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("これはあなた宛ての確認ではありません。", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="登録する", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for c in self.children:
+            c.disabled = True
+        await interaction.response.edit_message(view=self)
+        await self.on_confirm(interaction)
+        self.stop()
+
+    @discord.ui.button(label="中止", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for c in self.children:
+            c.disabled = True
+        await interaction.response.edit_message(content="中止しました。", view=self)
+        self.stop()
+
+
 HEALTH_TARGETS = [
     ("Immich",     "http://immich-server:2283/api/server/ping"),
     ("n8n",        "http://n8n:5678/healthz"),
@@ -861,6 +885,7 @@ HEALTH_TARGETS = [
     ("Wani",       "http://wani:8090/healthz"),
 ]
 
+
 async def _ping(session: aiohttp.ClientSession, url: str) -> tuple[bool, str]:
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
@@ -868,60 +893,73 @@ async def _ping(session: aiohttp.ClientSession, url: str) -> tuple[bool, str]:
     except Exception as e:
         return False, type(e).__name__
 
-@bot.command(name="health")
-async def health(ctx):
-    """内部サービスの死活を1つずつ確認しながら実況する（読み取り専用）"""
-    msg = await ctx.send("**ヘルスチェック開始**\n(各サービスに順番にアクセスします)")
+
+@bot.tree.command(name="status", description="サーバーの状態(保存領域・モード・時刻)を表示")
+async def status_slash(interaction: discord.Interaction):
+    import shutil
+    disk = shutil.disk_usage(CONTEXT_DIR) if CONTEXT_DIR.exists() else None
+    msg = "**サーバー状態**\n"
+    if disk:
+        msg += (f"・保存領域(会話履歴等): {disk.used/1024**3:.1f} GB / "
+                f"{disk.total/1024**3:.1f} GB ({disk.used/disk.total*100:.1f}%)\n")
+    msg += f"・エージェントモード: {'有効' if DISCORD_OWNER_ID else '無効(DISCORD_OWNER_ID未設定)'}\n"
+    msg += f"・現在時刻: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    await interaction.response.send_message(msg)
+
+
+@bot.tree.command(name="health", description="内部サービスの死活を1つずつ確認する(読み取り専用)")
+async def health_slash(interaction: discord.Interaction):
+    await interaction.response.send_message("**ヘルスチェック開始**\n(各サービスに順番にアクセスします)")
+    msg = await interaction.original_response()
     lines = []
     async with aiohttp.ClientSession() as session:
         for name, url in HEALTH_TARGETS:
             ok, detail = await _ping(session, url)
-            mark = "🟢" if ok else "🔴"
-            lines.append(f"{mark} {name}: {detail}")
+            lines.append(f"{'🟢' if ok else '🔴'} {name}: {detail}")
             await msg.edit(content="**ヘルスチェック**\n" + "\n".join(lines))
 
-@bot.command(name="clear")
-async def clear_history(ctx):
-    """会話履歴をリセット"""
+
+@bot.tree.command(name="clear", description="ワニ博士との会話履歴をリセットする")
+async def clear_slash(interaction: discord.Interaction):
     if HISTORY_FILE.exists():
         HISTORY_FILE.unlink()
-    await ctx.send("会話履歴をリセットしました。")
+    await interaction.response.send_message("会話履歴をリセットしました。")
 
 
-@bot.command(name="todos")
-async def todos_cmd(ctx):
-    """今日の創出タスク(夜間生成)をワンタップ承認でGoogle ToDoに一括登録する。"""
-    if DISCORD_OWNER_ID and ctx.author.id != DISCORD_OWNER_ID:
+@bot.tree.command(name="plan", description="今日のおすすめ(締切・創出タスク・時間割)を表示")
+async def plan_slash(interaction: discord.Interaction):
+    if not load_daily_plan_raw():
+        await interaction.response.send_message("今日のプランがまだありません(夜間4時に生成されます)。")
+        return
+    text = load_daily_plan_text() or "(内容なし)"
+    await interaction.response.send_message(f"📋 **今日の作戦**\n{text}"[:2000])
+
+
+@bot.tree.command(name="todos", description="今日の創出タスクをGoogle ToDoに登録(ワニ博士アプリで討伐)")
+async def todos_slash(interaction: discord.Interaction):
+    if DISCORD_OWNER_ID and interaction.user.id != DISCORD_OWNER_ID:
+        await interaction.response.send_message("owner限定のコマンドです。", ephemeral=True)
         return
     plan = load_daily_plan_raw()
     if not plan:
-        await ctx.send("今日のプランがまだありません(夜間4時に生成されます)。")
+        await interaction.response.send_message("今日のプランがまだありません(夜間4時に生成されます)。")
         return
     items = build_todo_items(plan)
     if not items:
-        await ctx.send("登録できる創出タスクがありません(繁忙期で0件など)。")
+        await interaction.response.send_message("登録できる創出タスクがありません(繁忙期で0件など)。")
         return
     preview = "\n".join(f"・{it['title']}" + (f"（{it['notes']}）" if it.get("notes") else "")
                         for it in items)
-    msg = await ctx.send(
-        f"📝 以下をGoogle ToDoに登録します(ワニ博士アプリで討伐可):\n{preview}\n\n✅で登録 / ❌で中止")
-    await msg.add_reaction("✅")
-    await msg.add_reaction("❌")
 
-    def check(reaction: discord.Reaction, user: discord.abc.User) -> bool:
-        return (reaction.message.id == msg.id and user.id == ctx.author.id
-                and str(reaction.emoji) in ("✅", "❌"))
+    async def do_register(inter: discord.Interaction):
+        ok_n, total = await write_todos(items)
+        await inter.followup.send(
+            f"Google ToDoに{ok_n}/{total}件登録しました。ワニ博士アプリで討伐しよう！")
 
-    try:
-        reaction, _ = await bot.wait_for("reaction_add", timeout=CONFIRM_TIMEOUT_SEC, check=check)
-    except asyncio.TimeoutError:
-        await msg.reply("タイムアウトで中止しました。")
-        return
-    if str(reaction.emoji) != "✅":
-        await msg.reply("中止しました。")
-        return
-    ok_n, total = await write_todos(items)
-    await msg.reply(f"Google ToDoに{ok_n}/{total}件登録しました。ワニ博士アプリで討伐しよう！")
+    await interaction.response.send_message(
+        f"📝 以下をGoogle ToDoに登録します(ワニ博士アプリで討伐可):\n{preview}",
+        view=ConfirmView(interaction.user.id, do_register))
+
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)

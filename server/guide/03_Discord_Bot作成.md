@@ -60,7 +60,8 @@ Bot ページで以下を有効にする：
 ## ステップ4: Bot をサーバーに招待
 
 1. 左メニューの **「OAuth2」** → **「URL Generator」**
-2. **SCOPES** で `bot` にチェック
+2. **SCOPES** で `bot` と **`applications.commands`** にチェック
+   （`applications.commands` が無いとスラッシュコマンド `/` がサーバーに表示されない）
 3. **BOT PERMISSIONS** で以下にチェック：
    - `Send Messages`
    - `Read Message History`
@@ -101,12 +102,19 @@ DISCORD_CHANNEL_CHAT=butler-chatのチャンネルID
 
 ### コマンド一覧
 
+コマンドはスラッシュコマンド(`/`)。チャット欄で `/` を打つと候補と説明が出る。
+
 | コマンド | 説明 |
 |---------|-----|
 | `@butler <メッセージ>` | AIと会話 |
-| `!status` | サーバー状態確認 |
-| `!health` | 内部サービス（Immich/n8n/LiteLLM等）の死活確認 |
-| `!clear` | 会話履歴リセット |
+| `/status` | サーバー状態確認 |
+| `/health` | 内部サービス（Immich/n8n/LiteLLM等）の死活確認 |
+| `/plan` | 今日のおすすめ(締切・創出タスク・時間割)を表示 |
+| `/todos` | 今日の創出タスクをGoogle ToDoに登録(ボタン承認、waniで討伐) |
+| `/clear` | 会話履歴リセット |
+
+> スラッシュコマンドが出ないときは、`applications.commands` スコープを付けて招待し直す
+> (ステップ4)。ギルド単位で即時反映される。
 
 ### さらに進んだ使い方
 
