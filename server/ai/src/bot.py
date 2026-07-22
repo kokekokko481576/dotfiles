@@ -116,8 +116,8 @@ AGENT_MODE_INSTRUCTION = (
     "「権限がない」と過小に答えたりする必要はありません。"
     "また、こっこが学習の進捗・過去問の得点・弱点・到達度などを話したら update_progress で"
     "その領域(院試/研究等)に記録すること(翌日の日次プランのタスク創出に使われる)。"
-    "「今日の予定入れといて」「時間割カレンダーに入れて」等と言われたら apply_daily_schedule を"
-    "呼び、夜間に生成された今日の時間割(学習/作業タスク)を空き時間に一括登録すること。"
+    "「今日のタスク入れといて」「今日のToDo作って」「今日の作戦やる」等と言われたら add_today_todos を"
+    "呼び、夜間に生成された今日の創出タスクをGoogle ToDoに一括登録すること(ワニ博士アプリで討伐できる)。"
 )
 
 # 夜間(task-agent daily-plan)が生成した当日プラン。butlerの朝ブリーフィングもこれを読んで、
@@ -157,38 +157,58 @@ def load_daily_plan_text() -> str | None:
     return "\n".join(lines) if lines else None
 
 
-# ---- 時間割 → Googleカレンダー登録 ----
-# 生活(食事/休憩/起床)や固定(既存予定)は登録せず、学習/作業タスクだけをカレンダーに入れる。
-_SCHEDULE_SKIP_DOMAINS = {"生活", "固定", "休憩", "食事", "life", "fixed", "break", "meal"}
+# ---- 今日の創出タスク → Google ToDo登録 ----
+# ワニ博士アプリで「討伐」できるよう、生成タスクはカレンダー予定でなくGoogle ToDoにする。
+N8N_TODO_ADD_URL = os.environ.get("N8N_TODO_ADD_URL", "http://n8n:5678/webhook/todo-add")
 
 
-def build_schedule_events(plan: dict) -> list[dict]:
-    """proposed_scheduleから、カレンダーに登録する価値のあるタスク項目だけをRFC3339で返す。"""
+async def _todo_add(title: str, notes: str = "", due: str = "") -> tuple[bool, str]:
+    """n8n経由でGoogle ToDoを1件作成する。(成功, エラー文)を返す。"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                N8N_TODO_ADD_URL,
+                json={"title": title, "notes": notes, "due": due},
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    return False, f"HTTP {resp.status} {text[:200]}"
+    except Exception as e:
+        log.error(f"todo add error: {e}")
+        return False, str(e)
+    return True, ""
+
+
+def build_todo_items(plan: dict) -> list[dict]:
+    """daily_planのgenerated_tasks(創出タスク)をToDo項目に変換する。
+    GitHub picksは既にワニ博士アプリで扱えるのでToDo化しない(重複回避)。"""
     today = datetime.now().strftime("%Y-%m-%d")
-    events = []
-    for s in plan.get("proposed_schedule", []):
-        dom = (s.get("domain") or "").strip()
-        if dom in _SCHEDULE_SKIP_DOMAINS or dom.lower() in _SCHEDULE_SKIP_DOMAINS:
+    due = f"{today}T00:00:00.000Z"
+    items = []
+    for t in plan.get("generated_tasks", []):
+        title = (t.get("title") or "").strip()
+        if not title:
             continue
-        start, end, title = s.get("start", ""), s.get("end", ""), (s.get("title") or "").strip()
-        if not (len(start) == 5 and len(end) == 5 and title):
-            continue
-        events.append({
-            "summary": title,
-            "start": f"{today}T{start}:00+09:00",
-            "end": f"{today}T{end}:00+09:00",
-        })
-    return events
+        parts = []
+        if t.get("reason"):
+            parts.append(t["reason"])
+        if t.get("estimated_minutes"):
+            parts.append(f"約{t['estimated_minutes']}分")
+        if t.get("preferred_time"):
+            parts.append(str(t["preferred_time"]))
+        items.append({"title": title, "notes": " ｜ ".join(parts), "due": due})
+    return items
 
 
-async def write_schedule_events(events: list[dict]) -> tuple[int, int]:
-    """イベントをGoogleカレンダーに登録し、(成功数, 総数)を返す。"""
+async def write_todos(items: list[dict]) -> tuple[int, int]:
+    """ToDoをGoogle Tasksに作成し、(成功数, 総数)を返す。"""
     ok = 0
-    for e in events:
-        good, _ = await _calendar_add(e["summary"], e["start"], e["end"], "ワニ博士の時間割より")
+    for it in items:
+        good, _ = await _todo_add(it["title"], it.get("notes", ""), it.get("due", ""))
         if good:
             ok += 1
-    return ok, len(events)
+    return ok, len(items)
 
 
 # ---- 進捗ステート(projects)の更新 ----
@@ -299,14 +319,15 @@ async def request_confirmation(channel, requester, tool_name: str, args: dict) -
         new = args.get("content", "")
         verb = "新規作成" if not old else "編集"
         detail = f"path: `{path}` ({verb})\n{_render_write_diff(path, old, new)}"
-    elif tool_name == "apply_daily_schedule":
+    elif tool_name == "add_today_todos":
         plan = load_daily_plan_raw()
-        events = build_schedule_events(plan) if plan else []
-        if events:
-            body = "\n".join(f"・{e['start'][11:16]}–{e['end'][11:16]} {e['summary']}" for e in events)
+        items = build_todo_items(plan) if plan else []
+        if items:
+            body = "\n".join(f"・{it['title']}" + (f"（{it['notes']}）" if it.get("notes") else "")
+                             for it in items)
         else:
-            body = "(登録できる時間割タスクがありません)"
-        detail = f"以下をGoogleカレンダーに登録します:\n```\n{body[:1500]}\n```"
+            body = "(登録できる創出タスクがありません)"
+        detail = f"以下をGoogle ToDoに登録します(ワニ博士アプリで討伐可):\n```\n{body[:1500]}\n```"
     else:
         preview = args.get("command") or args.get("path") or ""
         detail = f"```\n{preview[:1500]}\n```"
@@ -596,7 +617,7 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
 
             if name == "run_shell":
                 decision = agent_tools.classify_shell(args.get("command", ""))
-            elif name in ("write_file", "create_calendar_event", "apply_daily_schedule"):
+            elif name in ("write_file", "create_calendar_event", "add_today_todos"):
                 decision = "confirm"
             else:
                 decision = "auto"
@@ -626,15 +647,15 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
                 elif name == "set_today_tasks":
                     result = {"ok": True, "output": await wani_set_today(
                         [int(n) for n in args.get("numbers", [])])}
-                elif name == "apply_daily_schedule":
+                elif name == "add_today_todos":
                     plan = load_daily_plan_raw()
-                    events = build_schedule_events(plan) if plan else []
-                    if not events:
-                        result = {"ok": False, "output": "今日の時間割(登録できるタスク)がありません。"}
+                    items = build_todo_items(plan) if plan else []
+                    if not items:
+                        result = {"ok": False, "output": "今日の創出タスクがありません(繁忙期で0件など)。"}
                     else:
-                        ok_n, total = await write_schedule_events(events)
+                        ok_n, total = await write_todos(items)
                         result = {"ok": ok_n > 0,
-                                  "output": f"カレンダーに{ok_n}/{total}件の時間割タスクを登録しました。"}
+                                  "output": f"Google ToDoに{ok_n}/{total}件登録しました(ワニ博士アプリで討伐できます)。"}
                 elif name == "update_progress":
                     result = {"ok": True, "output": update_progress_file(
                         args.get("domain", ""), args.get("note", ""))}
@@ -862,22 +883,23 @@ async def clear_history(ctx):
     await ctx.send("会話履歴をリセットしました。")
 
 
-@bot.command(name="schedule")
-async def schedule_cmd(ctx):
-    """今日の時間割(夜間生成)をワンタップ承認でGoogleカレンダーに一括登録する。"""
+@bot.command(name="todos")
+async def todos_cmd(ctx):
+    """今日の創出タスク(夜間生成)をワンタップ承認でGoogle ToDoに一括登録する。"""
     if DISCORD_OWNER_ID and ctx.author.id != DISCORD_OWNER_ID:
         return
     plan = load_daily_plan_raw()
     if not plan:
         await ctx.send("今日のプランがまだありません(夜間4時に生成されます)。")
         return
-    events = build_schedule_events(plan)
-    if not events:
-        await ctx.send("カレンダーに入れる時間割タスクがありません(繁忙期で0件など)。")
+    items = build_todo_items(plan)
+    if not items:
+        await ctx.send("登録できる創出タスクがありません(繁忙期で0件など)。")
         return
-    preview = "\n".join(f"・{e['start'][11:16]}–{e['end'][11:16]} {e['summary']}" for e in events)
+    preview = "\n".join(f"・{it['title']}" + (f"（{it['notes']}）" if it.get("notes") else "")
+                        for it in items)
     msg = await ctx.send(
-        f"🗓 以下をGoogleカレンダーに登録します:\n{preview}\n\n✅で登録 / ❌で中止")
+        f"📝 以下をGoogle ToDoに登録します(ワニ博士アプリで討伐可):\n{preview}\n\n✅で登録 / ❌で中止")
     await msg.add_reaction("✅")
     await msg.add_reaction("❌")
 
@@ -893,8 +915,8 @@ async def schedule_cmd(ctx):
     if str(reaction.emoji) != "✅":
         await msg.reply("中止しました。")
         return
-    ok_n, total = await write_schedule_events(events)
-    await msg.reply(f"カレンダーに{ok_n}/{total}件登録しました。")
+    ok_n, total = await write_todos(items)
+    await msg.reply(f"Google ToDoに{ok_n}/{total}件登録しました。ワニ博士アプリで討伐しよう！")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)

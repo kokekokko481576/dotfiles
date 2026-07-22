@@ -77,7 +77,8 @@ def _format_discord_message(plan: dict) -> str:
         for s in schedule:
             span = f"{s.get('start', '')}–{s.get('end', '')}".strip("–")
             lines.append(f"- {span} {s.get('title', '')}")
-        lines.append("_この時間割でよければ #butler-chat で「今日の予定入れといて」と言えばカレンダーに登録します_")
+        lines.append("_この時間割は目安。創出タスクをToDo化するなら #butler-chat で"
+                     "「今日のタスク入れといて」(または `!todos`)。ワニ博士アプリで討伐できます_")
 
     if not (picks or generated or schedule or comment):
         lines += ["", "今日はおすすめタスクなし。ゆっくりいこう。"]

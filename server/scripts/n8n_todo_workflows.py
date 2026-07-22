@@ -110,21 +110,66 @@ def wf_complete(cred):
     }
 
 
+def wf_add(cred):
+    """POST /webhook/todo-add {title, notes?, due?} → Google Tasksに1件作成。
+    creates a Google Task so it appears in ワニ博士アプリ(討伐対象)。"""
+    return {
+        "id": "waniTodoAdd01",
+        "name": "ワニ博士_ToDo追加",
+        "settings": {},
+        "nodes": [
+            {
+                "parameters": {"httpMethod": "POST", "path": "todo-add",
+                               "authentication": "none",
+                               "responseMode": "responseNode", "options": {}},
+                "id": str(uuid.uuid4()), "name": "Webhook",
+                "type": "n8n-nodes-base.webhook", "typeVersion": 2.1,
+                "position": [240, 300], "webhookId": str(uuid.uuid4()),
+            },
+            {
+                "parameters": {
+                    "operation": "create",
+                    "task": "@default",
+                    "title": "={{ $json.body.title }}",
+                    "additionalFields": {
+                        "notes": "={{ $json.body.notes || '' }}",
+                        "dueDate": "={{ $json.body.due || '' }}",
+                    },
+                },
+                "id": str(uuid.uuid4()), "name": "Google Tasks",
+                "type": "n8n-nodes-base.googleTasks", "typeVersion": 1,
+                "position": [460, 300],
+                "credentials": {"googleTasksOAuth2Api": cred},
+            },
+            {
+                "parameters": {"respondWith": "allIncomingItems", "options": {}},
+                "id": str(uuid.uuid4()), "name": "Respond to Webhook",
+                "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.5,
+                "position": [680, 300],
+            },
+        ],
+        "connections": {
+            "Webhook": {"main": [[{"node": "Google Tasks", "type": "main", "index": 0}]]},
+            "Google Tasks": {"main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]},
+        },
+    }
+
+
 def main():
     cred = find_credential()
     print(f"クレデンシャル: {cred['name']} ({cred['id']})")
-    wfs = [wf_fetch(cred), wf_complete(cred)]
+    wfs = [wf_fetch(cred), wf_complete(cred), wf_add(cred)]
     with open("/tmp/wani_todo_wfs.json", "w", encoding="utf-8") as f:
         json.dump(wfs, f, ensure_ascii=False)
     run = lambda *a: subprocess.run(a, check=False, capture_output=True, text=True)
     print(run("docker", "cp", "/tmp/wani_todo_wfs.json", "n8n:/tmp/wani_todo_wfs.json").stderr or "cp OK")
     r = run("docker", "exec", "n8n", "n8n", "import:workflow", "--input=/tmp/wani_todo_wfs.json")
     print(r.stdout.strip().splitlines()[-1] if r.stdout else r.stderr[-200:])
-    for wid in ("waniTodoFetch01", "waniTodoDone01"):
+    for wid in ("waniTodoFetch01", "waniTodoDone01", "waniTodoAdd01"):
         run("docker", "exec", "n8n", "n8n", "publish:workflow", f"--id={wid}")
     print("publish済み。n8nを再起動します…")
     run("docker", "compose", "restart", "n8n")
-    print("完了。curl http://localhost:5678/webhook/todos で確認してください")
+    print("完了。curl -XPOST http://localhost:5678/webhook/todo-add -d '{\"title\":\"テスト\"}' で確認")
 
 
 if __name__ == "__main__":

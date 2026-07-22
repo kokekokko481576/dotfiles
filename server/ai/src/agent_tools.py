@@ -205,12 +205,12 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "apply_daily_schedule",
+            "name": "add_today_todos",
             "description": (
-                "夜間に生成された今日の時間割(daily_plan.jsonの学習/作業タスク)を、Googleカレンダーの"
-                "空き時間に一括登録する。こっこが「今日の予定入れといて」「時間割カレンダーに入れて」等と"
-                "言ったら呼ぶ。食事・休憩・既存の固定予定は登録しない。実行前に一覧を見せて承認を得る"
-                "(この確認は自動で挟まる)。"
+                "夜間に生成された今日の創出タスク(daily_plan.jsonのgenerated_tasks)を、Google ToDoに"
+                "一括登録する。こっこが「今日のタスク入れといて」「今日のToDo作って」「今日の作戦やる」等と"
+                "言ったら呼ぶ。登録するとワニ博士アプリで討伐(完了)できるようになる。実行前に一覧を見せて"
+                "承認を得る(この確認は自動で挟まる)。"
             ),
             "parameters": {"type": "object", "properties": {}},
         },
