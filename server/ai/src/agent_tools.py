@@ -202,6 +202,40 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_daily_schedule",
+            "description": (
+                "夜間に生成された今日の時間割(daily_plan.jsonの学習/作業タスク)を、Googleカレンダーの"
+                "空き時間に一括登録する。こっこが「今日の予定入れといて」「時間割カレンダーに入れて」等と"
+                "言ったら呼ぶ。食事・休憩・既存の固定予定は登録しない。実行前に一覧を見せて承認を得る"
+                "(この確認は自動で挟まる)。"
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_progress",
+            "description": (
+                "管理中の領域(院試/研究/バイト等)の進捗を記録する。こっこが学習の進み具合・過去問の得点・"
+                "弱点・到達度などを報告したら呼ぶ。例:『過去問2020の電磁気7割だった』『流体の教科書3章まで終わった』。"
+                "記録は次の日次プラン生成で『次にやるべきタスク』の材料になる。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string",
+                               "description": "領域名(例: 院試, 研究, バイト)。進捗ファイル名になる"},
+                    "note": {"type": "string",
+                             "description": "記録内容(例: 過去問2020の電磁気7割、流体3章まで完了、微分方程式が弱点)"},
+                },
+                "required": ["domain", "note"],
+            },
+        },
+    },
 ]
 
 # 認証情報・秘密鍵など、エージェントに読み書きさせてはいけないパス(部分一致・大文字小文字無視)。

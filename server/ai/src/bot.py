@@ -4,6 +4,7 @@ Discord経由でGemini APIと会話するワニ博士ボット。
 """
 import os
 import io
+import re
 import json
 import asyncio
 import difflib
@@ -113,6 +114,10 @@ AGENT_MODE_INSTRUCTION = (
     "頼まれた場合も同様に積極的にツールを使ってください。破壊的、または元に戻せない可能性がある操作は"
     "実行前にDiscordでこっこの承認を求める仕組みが自動で挟まるので、あなたが遠慮したり"
     "「権限がない」と過小に答えたりする必要はありません。"
+    "また、こっこが学習の進捗・過去問の得点・弱点・到達度などを話したら update_progress で"
+    "その領域(院試/研究等)に記録すること(翌日の日次プランのタスク創出に使われる)。"
+    "「今日の予定入れといて」「時間割カレンダーに入れて」等と言われたら apply_daily_schedule を"
+    "呼び、夜間に生成された今日の時間割(学習/作業タスク)を空き時間に一括登録すること。"
 )
 
 # 夜間(task-agent daily-plan)が生成した当日プラン。butlerの朝ブリーフィングもこれを読んで、
@@ -121,21 +126,93 @@ AGENT_MODE_INSTRUCTION = (
 WANI_DATA_DIR = Path(os.environ.get("WANI_DATA_DIR", "/app/wani"))
 
 
-def load_daily_plan_text() -> str | None:
-    """当日のdaily_plan.jsonを朝ブリーフィング用テキストに整形する。無い/当日分でないならNone。"""
+def load_daily_plan_raw() -> dict | None:
+    """当日のdaily_plan.jsonを辞書で返す。無い/当日分でないならNone。"""
     try:
         plan = json.loads((WANI_DATA_DIR / "daily_plan.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    if plan.get("date") != datetime.now().strftime("%Y-%m-%d"):
+    return plan if plan.get("date") == datetime.now().strftime("%Y-%m-%d") else None
+
+
+def load_daily_plan_text() -> str | None:
+    """当日のdaily_plan.jsonを朝ブリーフィング用テキストに整形する。無い/当日分でないならNone。"""
+    plan = load_daily_plan_raw()
+    if not plan:
         return None
     comment = (plan.get("comment") or "").strip()
+    wake = (plan.get("wake_time") or "").strip()
     lines = [comment] if comment else []
     for p in plan.get("picks", []):
         num = f"#{p['number']} " if p.get("number") else ""
         reason = f" — {p['reason']}" if p.get("reason") else ""
         lines.append(f"・{num}{p.get('title', '')}{reason}")
+    for t in plan.get("generated_tasks", []):
+        mins = f"({t['estimated_minutes']}分)" if t.get("estimated_minutes") else ""
+        lines.append(f"・✏️{t.get('title', '')}{mins} — {t.get('reason', '')}")
+    sched = plan.get("proposed_schedule", [])
+    if sched:
+        head = f"🌅{wake}起床。時間割は " if wake else "時間割は "
+        lines.append(head + f"{len(sched)}コマ。カレンダーに入れるなら「今日の予定入れといて」")
     return "\n".join(lines) if lines else None
+
+
+# ---- 時間割 → Googleカレンダー登録 ----
+# 生活(食事/休憩/起床)や固定(既存予定)は登録せず、学習/作業タスクだけをカレンダーに入れる。
+_SCHEDULE_SKIP_DOMAINS = {"生活", "固定", "休憩", "食事", "life", "fixed", "break", "meal"}
+
+
+def build_schedule_events(plan: dict) -> list[dict]:
+    """proposed_scheduleから、カレンダーに登録する価値のあるタスク項目だけをRFC3339で返す。"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    events = []
+    for s in plan.get("proposed_schedule", []):
+        dom = (s.get("domain") or "").strip()
+        if dom in _SCHEDULE_SKIP_DOMAINS or dom.lower() in _SCHEDULE_SKIP_DOMAINS:
+            continue
+        start, end, title = s.get("start", ""), s.get("end", ""), (s.get("title") or "").strip()
+        if not (len(start) == 5 and len(end) == 5 and title):
+            continue
+        events.append({
+            "summary": title,
+            "start": f"{today}T{start}:00+09:00",
+            "end": f"{today}T{end}:00+09:00",
+        })
+    return events
+
+
+async def write_schedule_events(events: list[dict]) -> tuple[int, int]:
+    """イベントをGoogleカレンダーに登録し、(成功数, 総数)を返す。"""
+    ok = 0
+    for e in events:
+        good, _ = await _calendar_add(e["summary"], e["start"], e["end"], "ワニ博士の時間割より")
+        if good:
+            ok += 1
+    return ok, len(events)
+
+
+# ---- 進捗ステート(projects)の更新 ----
+PROJECTS_DIR = CONTEXT_DIR / "projects"
+
+
+def update_progress_file(domain: str, note: str) -> str:
+    """管理領域の進捗メモを /app/context/projects/<domain>.md に追記する。"""
+    # \w はUnicodeなので日本語もそのまま残る。/ や . を除去してパストラバーサルを防ぐ
+    domain = re.sub(r"[^\w-]", "", domain or "").strip()
+    note = (note or "").strip()
+    if not domain:
+        return "領域名が空です。"
+    if not note:
+        return "記録する内容が空です。"
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = PROJECTS_DIR / f"{domain}.md"
+    today = datetime.now().strftime("%Y-%m-%d")
+    new_file = not path.exists()
+    with open(path, "a", encoding="utf-8") as f:
+        if new_file:
+            f.write(f"# {domain}\n\n## 記録ログ\n")
+        f.write(f"- [{today}] {note}\n")
+    return f"「{domain}」に記録しました: {note}"
 
 
 # 会話履歴の読み込み / 保存
@@ -222,6 +299,14 @@ async def request_confirmation(channel, requester, tool_name: str, args: dict) -
         new = args.get("content", "")
         verb = "新規作成" if not old else "編集"
         detail = f"path: `{path}` ({verb})\n{_render_write_diff(path, old, new)}"
+    elif tool_name == "apply_daily_schedule":
+        plan = load_daily_plan_raw()
+        events = build_schedule_events(plan) if plan else []
+        if events:
+            body = "\n".join(f"・{e['start'][11:16]}–{e['end'][11:16]} {e['summary']}" for e in events)
+        else:
+            body = "(登録できる時間割タスクがありません)"
+        detail = f"以下をGoogleカレンダーに登録します:\n```\n{body[:1500]}\n```"
     else:
         preview = args.get("command") or args.get("path") or ""
         detail = f"```\n{preview[:1500]}\n```"
@@ -398,10 +483,8 @@ async def wani_create_task(title: str) -> str:
     return f"「{body['task']['title']}」をタスクに追加しました(Status: {body['task']['status']})。"
 
 
-async def create_calendar_event(summary: str, start: str, end: str, description: str = "") -> str:
-    """n8n経由でGoogleカレンダーに予定を1件追加する。"""
-    if not (summary and start and end):
-        return "（予定の追加に失敗: タイトル・開始・終了は必須です）"
+async def _calendar_add(summary: str, start: str, end: str, description: str = "") -> tuple[bool, str]:
+    """n8n経由でGoogleカレンダーに予定を1件追加する。(成功, エラー文)を返す。"""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -411,10 +494,20 @@ async def create_calendar_event(summary: str, start: str, end: str, description:
             ) as resp:
                 text = await resp.text()
                 if resp.status != 200:
-                    return f"（予定の追加に失敗しました: HTTP {resp.status} {text[:200]}）"
+                    return False, f"HTTP {resp.status} {text[:200]}"
     except Exception as e:
         log.error(f"calendar add error: {e}")
-        return f"（予定の追加に失敗しました: {e}）"
+        return False, str(e)
+    return True, ""
+
+
+async def create_calendar_event(summary: str, start: str, end: str, description: str = "") -> str:
+    """n8n経由でGoogleカレンダーに予定を1件追加する(LLMツール用。テキストを返す)。"""
+    if not (summary and start and end):
+        return "（予定の追加に失敗: タイトル・開始・終了は必須です）"
+    ok, err = await _calendar_add(summary, start, end, description)
+    if not ok:
+        return f"（予定の追加に失敗しました: {err}）"
     return f"カレンダーに「{summary}」を追加しました({start} 〜 {end})。"
 
 
@@ -503,7 +596,7 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
 
             if name == "run_shell":
                 decision = agent_tools.classify_shell(args.get("command", ""))
-            elif name in ("write_file", "create_calendar_event"):
+            elif name in ("write_file", "create_calendar_event", "apply_daily_schedule"):
                 decision = "confirm"
             else:
                 decision = "auto"
@@ -533,6 +626,18 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
                 elif name == "set_today_tasks":
                     result = {"ok": True, "output": await wani_set_today(
                         [int(n) for n in args.get("numbers", [])])}
+                elif name == "apply_daily_schedule":
+                    plan = load_daily_plan_raw()
+                    events = build_schedule_events(plan) if plan else []
+                    if not events:
+                        result = {"ok": False, "output": "今日の時間割(登録できるタスク)がありません。"}
+                    else:
+                        ok_n, total = await write_schedule_events(events)
+                        result = {"ok": ok_n > 0,
+                                  "output": f"カレンダーに{ok_n}/{total}件の時間割タスクを登録しました。"}
+                elif name == "update_progress":
+                    result = {"ok": True, "output": update_progress_file(
+                        args.get("domain", ""), args.get("note", ""))}
                 elif name == "update_task_status":
                     result = {"ok": True, "output": await wani_update_status(
                         args.get("status", ""),
@@ -755,6 +860,41 @@ async def clear_history(ctx):
     if HISTORY_FILE.exists():
         HISTORY_FILE.unlink()
     await ctx.send("会話履歴をリセットしました。")
+
+
+@bot.command(name="schedule")
+async def schedule_cmd(ctx):
+    """今日の時間割(夜間生成)をワンタップ承認でGoogleカレンダーに一括登録する。"""
+    if DISCORD_OWNER_ID and ctx.author.id != DISCORD_OWNER_ID:
+        return
+    plan = load_daily_plan_raw()
+    if not plan:
+        await ctx.send("今日のプランがまだありません(夜間4時に生成されます)。")
+        return
+    events = build_schedule_events(plan)
+    if not events:
+        await ctx.send("カレンダーに入れる時間割タスクがありません(繁忙期で0件など)。")
+        return
+    preview = "\n".join(f"・{e['start'][11:16]}–{e['end'][11:16]} {e['summary']}" for e in events)
+    msg = await ctx.send(
+        f"🗓 以下をGoogleカレンダーに登録します:\n{preview}\n\n✅で登録 / ❌で中止")
+    await msg.add_reaction("✅")
+    await msg.add_reaction("❌")
+
+    def check(reaction: discord.Reaction, user: discord.abc.User) -> bool:
+        return (reaction.message.id == msg.id and user.id == ctx.author.id
+                and str(reaction.emoji) in ("✅", "❌"))
+
+    try:
+        reaction, _ = await bot.wait_for("reaction_add", timeout=CONFIRM_TIMEOUT_SEC, check=check)
+    except asyncio.TimeoutError:
+        await msg.reply("タイムアウトで中止しました。")
+        return
+    if str(reaction.emoji) != "✅":
+        await msg.reply("中止しました。")
+        return
+    ok_n, total = await write_schedule_events(events)
+    await msg.reply(f"カレンダーに{ok_n}/{total}件登録しました。")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
