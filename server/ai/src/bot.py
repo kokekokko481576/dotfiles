@@ -142,7 +142,12 @@ def load_daily_plan_text() -> str | None:
         return None
     comment = (plan.get("comment") or "").strip()
     wake = (plan.get("wake_time") or "").strip()
-    lines = [comment] if comment else []
+    cd = plan.get("countdown") or {}
+    lines = []
+    if cd.get("days") is not None:
+        lines.append(f"⏳ {cd.get('label') or '締切'}まであと{cd['days']}日")
+    if comment:
+        lines.append(comment)
     for p in plan.get("picks", []):
         num = f"#{p['number']} " if p.get("number") else ""
         reason = f" — {p['reason']}" if p.get("reason") else ""

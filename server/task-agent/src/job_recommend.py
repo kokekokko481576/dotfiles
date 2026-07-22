@@ -47,7 +47,10 @@ def _format_discord_message(plan: dict) -> str:
     generated = plan.get("generated_tasks", [])
     schedule = plan.get("proposed_schedule", [])
     wake = (plan.get("wake_time") or "").strip()
+    cd = plan.get("countdown") or {}
     lines = ["🐊 **今日のおすすめ**"]
+    if cd.get("days") is not None:
+        lines += ["", f"⏳ **{cd.get('label') or '次の締切'}まであと{cd['days']}日**（{cd.get('date','')}）"]
     if comment:
         lines += ["", comment]
 
