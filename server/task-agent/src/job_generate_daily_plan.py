@@ -39,6 +39,8 @@ CONTEXT_DIR = os.environ.get("CONTEXT_DIR", "/app/context")
 # 今日のGoogleカレンダー予定(butler-botと同じn8n Webhook)。空き時間の時間割生成に使う。
 N8N_TODAY_SCHEDULE_URL = os.environ.get(
     "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+# 未完了のGoogle ToDo。既にある「やること」を時間割に組み込む/重複生成しないために渡す。
+N8N_TODOS_URL = os.environ.get("N8N_TODOS_URL", "http://n8n:5678/webhook/todos")
 
 
 def _fetch_today_events() -> list:
@@ -49,6 +51,27 @@ def _fetch_today_events() -> list:
         return resp.json() or []
     except Exception as e:
         log.warning("カレンダー取得に失敗(予定なし扱い): %s", e)
+        return []
+
+
+def _fetch_todos() -> list:
+    """未完了のGoogle ToDoを取得して{title,due,notes}に正規化する。失敗時は空。"""
+    try:
+        resp = requests.get(N8N_TODOS_URL, timeout=15)
+        resp.raise_for_status()
+        body = resp.json() or []
+        if isinstance(body, dict):
+            body = [body]
+        out = []
+        for t in body:
+            title = (t.get("title") or "").strip()
+            if not title:
+                continue
+            due = t.get("due") or ""
+            out.append({"title": title, "due": due[:10], "notes": (t.get("notes") or "")[:100]})
+        return out
+    except Exception as e:
+        log.warning("ToDo取得に失敗(なし扱い): %s", e)
         return []
 
 
@@ -150,11 +173,16 @@ def main() -> int:
         calendar_events = _fetch_today_events()
         log.info("今日の固定予定を%d件取得", len(calendar_events))
 
+        # 既存の未完了ToDo(時間割に組み込む・重複生成しない)
+        existing_todos = _fetch_todos()
+        log.info("未完了ToDoを%d件取得", len(existing_todos))
+
         log.info("ローカルLLMを呼び出して日次計画を生成します...")
         # 2. LLMを呼び出して計画を生成 (picksはitem_id付き)
         daily_plan = generate_daily_plan(
             github_items=github_items,
             calendar_events=calendar_events,
+            existing_todos=existing_todos,
         )
 
         # 3. メタ情報を付与(modelは実際に使われたものをgenerate_daily_planが返す)

@@ -158,8 +158,38 @@ def load_daily_plan_text() -> str | None:
     sched = plan.get("proposed_schedule", [])
     if sched:
         head = f"🌅{wake}起床。時間割は " if wake else "時間割は "
-        lines.append(head + f"{len(sched)}コマ。カレンダーに入れるなら「今日の予定入れといて」")
+        lines.append(head + f"{len(sched)}コマ(詳細は /plan)。")
     return "\n".join(lines) if lines else None
+
+
+def format_plan_full(plan: dict) -> str:
+    """/plan 用。時間割(カレンダー予定・既存ToDo込み)を実際に展開して見せる。"""
+    cd = plan.get("countdown") or {}
+    lines = []
+    if cd.get("days") is not None:
+        lines.append(f"⏳ **{cd.get('label') or '締切'}まであと{cd['days']}日**（{cd.get('date','')}）")
+    if plan.get("comment"):
+        lines.append(plan["comment"])
+    sched = plan.get("proposed_schedule", [])
+    if sched:
+        lines.append("\n**🗓 今日の時間割**（固定予定・既存ToDoも含む）")
+        for s in sched:
+            span = f"{s.get('start','')}–{s.get('end','')}".strip("–")
+            dom = f"  _{s.get('domain')}_" if s.get("domain") else ""
+            lines.append(f"`{span}` {s.get('title','')}{dom}")
+    picks = plan.get("picks", [])
+    if picks:
+        lines.append("\n**📌 GitHubタスク**")
+        for p in picks:
+            num = f"#{p['number']} " if p.get("number") else ""
+            lines.append(f"・{num}{p.get('title','')}")
+    gen = plan.get("generated_tasks", [])
+    if gen:
+        lines.append("\n**✏️ 今日つくったタスク**（`/todos` でToDo化して討伐）")
+        for t in gen:
+            mins = f"({t['estimated_minutes']}分)" if t.get("estimated_minutes") else ""
+            lines.append(f"・{t.get('title','')}{mins}")
+    return "\n".join(lines) if lines else "(内容なし)"
 
 
 # ---- 今日の創出タスク → Google ToDo登録 ----
@@ -926,13 +956,13 @@ async def clear_slash(interaction: discord.Interaction):
     await interaction.response.send_message("会話履歴をリセットしました。")
 
 
-@bot.tree.command(name="plan", description="今日のおすすめ(締切・創出タスク・時間割)を表示")
+@bot.tree.command(name="plan", description="今日のおすすめ(締切・時間割・創出タスク)を表示")
 async def plan_slash(interaction: discord.Interaction):
-    if not load_daily_plan_raw():
+    plan = load_daily_plan_raw()
+    if not plan:
         await interaction.response.send_message("今日のプランがまだありません(夜間4時に生成されます)。")
         return
-    text = load_daily_plan_text() or "(内容なし)"
-    await interaction.response.send_message(f"📋 **今日の作戦**\n{text}"[:2000])
+    await interaction.response.send_message(f"📋 **今日の作戦**\n{format_plan_full(plan)}"[:2000])
 
 
 @bot.tree.command(name="todos", description="今日の創出タスクをGoogle ToDoに登録(ワニ博士アプリで討伐)")
