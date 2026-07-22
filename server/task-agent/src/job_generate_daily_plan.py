@@ -54,6 +54,35 @@ def _fetch_today_events() -> list:
         return []
 
 
+# 天気(Open-Meteo。APIキー不要・無料)。既定は阪大吹田キャンパス付近。env で上書き可。
+WEATHER_LAT = os.environ.get("WEATHER_LAT", "34.82")
+WEATHER_LON = os.environ.get("WEATHER_LON", "135.52")
+_WMO = {0: "快晴", 1: "晴れ", 2: "晴れ時々曇り", 3: "曇り", 45: "霧", 48: "霧",
+        51: "小雨", 53: "雨", 55: "強い雨", 61: "雨", 63: "雨", 65: "強い雨",
+        71: "雪", 73: "雪", 75: "大雪", 80: "にわか雨", 81: "にわか雨", 82: "激しいにわか雨",
+        95: "雷雨", 96: "雷雨", 99: "激しい雷雨"}
+
+
+def _fetch_weather() -> dict | None:
+    """今日の天気(降水確率・天気概況・気温)を取得する。失敗時はNone(天気なし扱い)。"""
+    try:
+        url = (f"https://api.open-meteo.com/v1/forecast?latitude={WEATHER_LAT}"
+               f"&longitude={WEATHER_LON}&daily=weather_code,precipitation_probability_max,"
+               "temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo&forecast_days=1")
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        dj = resp.json()["daily"]
+        code = dj["weather_code"][0]
+        pop = dj["precipitation_probability_max"][0]
+        rainy = (code is not None and code >= 51) or (pop is not None and pop >= 50)
+        return {"desc": _WMO.get(code, "不明"), "pop": pop,
+                "tmax": dj["temperature_2m_max"][0], "tmin": dj["temperature_2m_min"][0],
+                "rainy": rainy}
+    except Exception as e:
+        log.warning("天気取得に失敗(天気なし扱い): %s", e)
+        return None
+
+
 def _fetch_todos() -> list:
     """未完了のGoogle ToDoを取得して{title,due,notes}に正規化する。失敗時は空。"""
     try:
@@ -177,12 +206,17 @@ def main() -> int:
         existing_todos = _fetch_todos()
         log.info("未完了ToDoを%d件取得", len(existing_todos))
 
+        # 今日の天気(雨なら登校を多めに取る等の判断に使う)
+        weather = _fetch_weather()
+        log.info("天気: %s", weather)
+
         log.info("ローカルLLMを呼び出して日次計画を生成します...")
         # 2. LLMを呼び出して計画を生成 (picksはitem_id付き)
         daily_plan = generate_daily_plan(
             github_items=github_items,
             calendar_events=calendar_events,
             existing_todos=existing_todos,
+            weather=weather,
         )
 
         # 3. メタ情報を付与(modelは実際に使われたものをgenerate_daily_planが返す)

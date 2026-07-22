@@ -330,7 +330,8 @@ def _iso_hm(v) -> str:
 
 
 def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
-                        existing_todos: list[dict] | None = None) -> dict:
+                        existing_todos: list[dict] | None = None,
+                        weather: dict | None = None) -> dict:
     """
     GitHub issue・カレンダー・既存ToDo・進捗ステート(projects)・生活リズムを元に、その日の計画を作る。
 
@@ -361,6 +362,15 @@ def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
         for t in (existing_todos or [])
     ) or "（なし）"
 
+    weather_block = ""
+    if weather:
+        w = weather
+        rain_note = "雨なので登校(移動)は多めに約30分取ること。" if w.get("rainy") else ""
+        weather_block = (
+            f"【今日の天気】{w.get('desc','')} / 降水確率{w.get('pop')}% / "
+            f"{w.get('tmin')}〜{w.get('tmax')}℃。{rain_note}\n\n"
+        )
+
     projects_text = _load_projects()
     projects_block = f"""【管理中の領域と進捗(次タスク創出の材料)】
 {projects_text}
@@ -377,7 +387,7 @@ def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
             f"(締切が近いほど演習・総仕上げに寄せ、遠いなら基礎固めでよい)。\n\n"
         )
 
-    prompt = f"""{_context_blocks()}{deadline_block}{projects_block}あなたは個人のタスク管理アシスタント「ワニ博士」です。
+    prompt = f"""{_context_blocks()}{deadline_block}{weather_block}{projects_block}あなたは個人のタスク管理アシスタント「ワニ博士」です。
 今日1日の計画を、次の3つを含めて立ててください。
 
 A) GitHubタスクの選抜(picks): 下の候補から今日やるべきものを番号で選ぶ(0〜5件)。
@@ -397,13 +407,17 @@ C) 時間割(proposed_schedule): 起床(wake_time)から就寝までを、下の
   主役にし、無関係な趣味/GitHubタスクは入れない(commentで理由を一言添える)。
 - 学習した傾向(あれば)に沿う。着手済み(In Progress/Review)は完遂を優先。
 - **進捗ステート/生活リズムに書かれた所要時間・手順は厳守**する。特に:
-  ・日課(例: daily_ knock 等)は指定の所要時間を、**途中で分割せず連続した1つの枠**で確保する
-    (他タスクで割り込まない。勝手に短縮しない)。
+  ・日課(例: daily_ knock 等)は指定の所要時間を必ず確保する(勝手に短縮しない)。原則は連続1枠。
+    どうしても固定予定(夕食など)と重なって収まらない時だけ、その固定予定をまたいで分割してよい
+    (合計時間は減らさない)。
   ・過去問(年度単位。例:「流力2023」のような年度名のタスク/ToDo)を解くブロックの**直後**に、
     その年度の「振り返り」枠を置く(長引く前提で余裕を持たせる)。スケジュールに無い年度の
     振り返りは作らない。
   ・起床の分岐条件(何時までに起きたら何をする等)に従って朝の並びを決める。
   枠が足りない場合は優先度の低いタスクを削って調整し、上記(日課の所要時間・振り返り)は削らない。
+- **時間割は重複させない**。特に移動(登校・帰宅)と勉強を同じ時間帯に重ねない。帰宅は勉強の後に置く。
+- きれいに収まらない/半端な空きになる場合は、タスクを固定予定(夕食など)をまたいで分割してよい
+  (その場合も日課の合計所要時間は減らさない)。就寝時刻を大きく超えそうなら低優先タスクを削る。
 
 【既にあるGoogle ToDo(未完了。既に「やること」として登録済み。時間割に組み込むが、
 generated_tasksとして作り直さない)】
