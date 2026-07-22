@@ -22,6 +22,8 @@ import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import requests
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
@@ -34,6 +36,20 @@ from llm_client import generate_daily_plan
 TZ = ZoneInfo(os.environ.get("TIMEZONE", "Asia/Tokyo"))
 DATA_DIR = os.environ.get("DATA_DIR", "/app/data")
 CONTEXT_DIR = os.environ.get("CONTEXT_DIR", "/app/context")
+# 今日のGoogleカレンダー予定(butler-botと同じn8n Webhook)。空き時間の時間割生成に使う。
+N8N_TODAY_SCHEDULE_URL = os.environ.get(
+    "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
+
+
+def _fetch_today_events() -> list:
+    """今日の固定予定を取得する。失敗しても計画生成は続けたいので空リストで劣化。"""
+    try:
+        resp = requests.get(N8N_TODAY_SCHEDULE_URL, timeout=15)
+        resp.raise_for_status()
+        return resp.json() or []
+    except Exception as e:
+        log.warning("カレンダー取得に失敗(予定なし扱い): %s", e)
+        return []
 
 
 def _read_json(path: str, default):
@@ -130,8 +146,9 @@ def main() -> int:
         github = GithubProjectClient()
         github_items = github.fetch_open_items()
 
-        # TODO: カレンダー連携モジュールから予定を取得する
-        calendar_events = []
+        # 今日の固定予定(空き時間へのタスク配置に使う)
+        calendar_events = _fetch_today_events()
+        log.info("今日の固定予定を%d件取得", len(calendar_events))
 
         log.info("ローカルLLMを呼び出して日次計画を生成します...")
         # 2. LLMを呼び出して計画を生成 (picksはitem_id付き)

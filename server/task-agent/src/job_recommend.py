@@ -41,15 +41,18 @@ def _load_daily_plan(doc_id: str) -> dict | None:
 
 
 def _format_discord_message(plan: dict) -> str:
-    """daily_plan.jsonのpicks/commentをDiscord投稿用Markdownに整形する。"""
+    """daily_plan.jsonのpicks/創出タスク/時間割をDiscord投稿用Markdownに整形する。"""
     comment = (plan.get("comment") or "").strip()
     picks = plan.get("picks", [])
+    generated = plan.get("generated_tasks", [])
+    schedule = plan.get("proposed_schedule", [])
+    wake = (plan.get("wake_time") or "").strip()
     lines = ["🐊 **今日のおすすめ**"]
     if comment:
-        lines.append("")
-        lines.append(comment)
+        lines += ["", comment]
+
     if picks:
-        lines.append("")
+        lines += ["", "**📌 GitHubタスク**"]
         for p in picks:
             num = f"#{p['number']} " if p.get("number") else ""
             repo = f" `{p['repo']}`" if p.get("repo") else ""
@@ -57,14 +60,29 @@ def _format_discord_message(plan: dict) -> str:
             lines.append(f"- **{num}{p.get('title', '(無題)')}**{repo}{urg}")
             if p.get("reason"):
                 lines.append(f"  ↳ {p['reason']}")
-    else:
-        # 繁忙期(院試等)にGeminiが「今日はGitHubタスク0件」と判断したケース。
-        # commentだけで完結させる(存在しないタスクをでっち上げない)。
-        if not comment:
-            lines.append("")
-            lines.append("今日はおすすめタスクなし。ゆっくりいこう。")
-    lines.append("")
-    lines.append("_進捗があればこのスレッドに返信してね(夜にまとめてStatusへ反映します)_")
+
+    if generated:
+        lines += ["", "**✏️ 今日つくったタスク**"]
+        for t in generated:
+            mins = f" ({t['estimated_minutes']}分)" if t.get("estimated_minutes") else ""
+            dom = f" [{t['domain']}]" if t.get("domain") else ""
+            lines.append(f"- **{t.get('title', '')}**{dom}{mins}")
+            if t.get("reason"):
+                lines.append(f"  ↳ {t['reason']}")
+
+    if schedule:
+        lines += ["", "**🗓 時間割(案)**"]
+        if wake:
+            lines.append(f"- 🌅 {wake} 起床")
+        for s in schedule:
+            span = f"{s.get('start', '')}–{s.get('end', '')}".strip("–")
+            lines.append(f"- {span} {s.get('title', '')}")
+        lines.append("_この時間割でよければ #butler-chat で「今日の予定入れといて」と言えばカレンダーに登録します_")
+
+    if not (picks or generated or schedule or comment):
+        lines += ["", "今日はおすすめタスクなし。ゆっくりいこう。"]
+
+    lines += ["", "_進捗があればこのスレッドに返信してね(夜にまとめてStatusへ反映します)_"]
     return "\n".join(lines)
 
 

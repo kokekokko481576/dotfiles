@@ -399,6 +399,8 @@ services:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-}
       - LITELLM_BASE_URL=${LITELLM_BASE_URL:-http://litellm:4000/v1}
       - LLM_MODEL=${WANI_LLM_MODEL:-gemini-2.5-flash-vertex}
+      # 今日の固定予定を取得して空き時間に時間割を組むため(butler-botと同じWebhook)
+      - N8N_TODAY_SCHEDULE_URL=${N8N_TODAY_SCHEDULE_URL:-http://n8n:5678/webhook/today-schedule}
     volumes:
       # waniアプリと共有するために、/mnt/data/ai/wani を /app/data にマウント
       - /mnt/data/ai/wani:/app/data
@@ -409,6 +411,7 @@ services:
     depends_on:
       - ollama    # Gemini失敗時のフォールバック用
       - litellm   # 主経路(Gemini)
+      - n8n       # 今日の固定予定の取得(空き時間の時間割生成)
     mem_limit: 256m
     profiles:
       - task-agent
