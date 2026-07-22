@@ -118,6 +118,10 @@ AGENT_MODE_INSTRUCTION = (
     "その領域(院試/研究等)に記録すること(翌日の日次プランのタスク創出に使われる)。"
     "「今日のタスク入れといて」「今日のToDo作って」「今日の作戦やる」等と言われたら add_today_todos を"
     "呼び、夜間に生成された今日の創出タスクをGoogle ToDoに一括登録すること(ワニ博士アプリで討伐できる)。"
+    "夜の振り返り(日記)では、まず今日の達成状況(list_tasksで確認)を踏まえて『今日は何をした?"
+    "どうだった?過去問の出来は?』と親しみやすく短く問いかけ、会話する。こっこの返答から過去問の"
+    "点数・学習到達度・弱点など進捗が出たら update_progress で該当領域(院試等)に記録し、"
+    "話がひと段落したら save_diary でその日の日記を保存する(1日分を数行に要約)。"
 )
 
 # 夜間(task-agent daily-plan)が生成した当日プラン。butlerの朝ブリーフィングもこれを読んで、
@@ -244,6 +248,27 @@ async def write_todos(items: list[dict]) -> tuple[int, int]:
         if good:
             ok += 1
     return ok, len(items)
+
+
+# ---- 日記(振り返り)の保存 ----
+DIARY_DIR = Path(os.environ.get("DIARY_DIR", "/app/diary"))
+
+
+def save_diary_entry(content: str, mood: str = "") -> str:
+    """その日の日記を /app/diary/YYYY-MM-DD.md に保存(同日は追記)する。"""
+    content = (content or "").strip()
+    if not content:
+        return "日記の内容が空です。"
+    DIARY_DIR.mkdir(parents=True, exist_ok=True)
+    now = datetime.now()
+    path = DIARY_DIR / f"{now.strftime('%Y-%m-%d')}.md"
+    header_needed = not path.exists()
+    with open(path, "a", encoding="utf-8") as f:
+        if header_needed:
+            f.write(f"# {now.strftime('%Y-%m-%d')} の日記\n\n")
+        f.write(f"## {now.strftime('%H:%M')}" + (f"（気分: {mood}）" if mood else "") + "\n")
+        f.write(content + "\n\n")
+    return f"日記を保存しました（{now.strftime('%Y-%m-%d')}）。"
 
 
 # ---- 進捗ステート(projects)の更新 ----
@@ -694,6 +719,9 @@ async def run_agent_turn(channel, requester, messages: list) -> tuple[str, list]
                 elif name == "update_progress":
                     result = {"ok": True, "output": update_progress_file(
                         args.get("domain", ""), args.get("note", ""))}
+                elif name == "save_diary":
+                    result = {"ok": True, "output": save_diary_entry(
+                        args.get("content", ""), args.get("mood", ""))}
                 elif name == "update_task_status":
                     result = {"ok": True, "output": await wani_update_status(
                         args.get("status", ""),
@@ -734,6 +762,8 @@ async def on_ready():
     log.info(f"Butler Bot 起動: {bot.user} (ID: {bot.user.id})")
     if not daily_briefing.is_running():
         daily_briefing.start()
+    if not evening_reflection.is_running():
+        evening_reflection.start()
     # スラッシュコマンドをギルドに同期(ギルド単位は即時反映。グローバルは反映に最大1時間)
     try:
         bot.tree.copy_global_to(guild=GUILD_OBJ)
@@ -805,33 +835,70 @@ async def on_message(message: discord.Message):
 
     await bot.process_commands(message)
 
-# ---- 朝のデイリーブリーフィング（毎日8時）----
-async def suggest_today_tasks(schedule: str, tasks_text: str) -> str:
-    """カレンダーの予定とタスク一覧をGeminiに渡し、今日のおすすめタスクを提案させる。"""
-    # プロフィール/大日程は SYSTEM_INSTRUCTION に既に含まれるのでここでは付けない。
+# ---- 朝のデイリーブリーフィング（毎日7時）----
+BRIEFING_HOUR = int(os.environ.get("BRIEFING_HOUR", "7"))
+EVENING_REFLECT_HOUR = int(os.environ.get("EVENING_REFLECT_HOUR", "21"))
+WAKE_CONFIRM_SEC = int(os.environ.get("WAKE_CONFIRM_SEC", "900"))  # 起床確認の猶予(15分)
+
+
+def _weather_line(w: dict | None) -> str:
+    if not w:
+        return ""
+    rain = "　☔傘を!(雨→登校長め)" if w.get("rainy") else ""
+    return (f"🌤 天気: {w.get('desc','')} / 降水{w.get('pop')}% / "
+            f"{w.get('tmin')}〜{w.get('tmax')}℃{rain}")
+
+
+async def _await_wake_or_replan(msg, ch):
+    """朝ブリーフィングに15分以内に👀が付かなければ寝坊とみなして組み直す。"""
+    def check(reaction, user):
+        return (reaction.message.id == msg.id and str(reaction.emoji) == "👀"
+                and (DISCORD_OWNER_ID is None or user.id == DISCORD_OWNER_ID))
+    try:
+        await bot.wait_for("reaction_add", timeout=WAKE_CONFIRM_SEC, check=check)
+        return  # 起床確認OK。朝プランのまま
+    except asyncio.TimeoutError:
+        await ch.send("むむ、15分反応が無いのだ…寝坊とみなして今日の予定を組み直すのだ!")
+        await replan_overslept(ch)
+
+
+async def replan_overslept(ch):
+    """寝坊時: 今から就寝までで現実的に時間割を組み直し、daily_plan.jsonを更新して再掲する。"""
+    plan = load_daily_plan_raw()
+    if not plan:
+        await ch.send("今日のプランが無いので組み直せないのだ。")
+        return
+    now = datetime.now()
+    sched = plan.get("proposed_schedule", [])
+    orig = "\n".join(f"{s.get('start')}-{s.get('end')} {s.get('title')}" for s in sched)
     prompt = (
-        f"今日の予定:\n{schedule}\n\n現在のタスク:\n{tasks_text}\n\n"
-        "上記を踏まえ、朝のブリーフィングとして「今日のおすすめタスク」を提案してください。"
-        "提案は次を守ること:\n"
-        "・まず『こっこについて』の大日程・今の時期を最優先で考える。院試・試験・大きな締切前などの"
-        "繁忙期には、それと関係ないタスク(GitHub等)を無理に勧めず、その時期にやるべきことを軸にする"
-        "(おすすめ0〜1件でもよい)。\n"
-        "・各タスクの所要時間・重さと、今日の予定の空き具合との相性を理由に一言添える。\n"
-        "・waiting(他人待ち)とwish list(後回しBOX)は原則すすめない(締切が近そうな場合のみ言及可)。\n"
-        "全体で200字以内。"
+        f"こっこが寝坊した。今の時刻は約{now.strftime('%H:%M')}。今日はもう筋トレはしない。"
+        "以下の元の時間割を、今から就寝(22:00目標)までで現実的に組み直して。"
+        "日課daily_knock(約3時間)と『過去問→振り返り』はできるだけ残し、間に合わない低優先タスクは削る。"
+        "食事など固定予定は動かさない。移動と勉強を重ねない。\n"
+        '次のJSONだけ出力: {"proposed_schedule":[{"start":"HH:MM","end":"HH:MM","title":"...","domain":"..."}],'
+        ' "comment":"寝坊を踏まえた一言(40字以内)"}\n\n元の時間割:\n' + orig
     )
     try:
-        response = await llm_client.chat.completions.create(
+        resp = await llm_client.chat.completions.create(
             model=LLM_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        return response.choices[0].message.content or ""
+            messages=[{"role": "system", "content": SYSTEM_INSTRUCTION},
+                      {"role": "user", "content": prompt}],
+            response_format={"type": "json_object"})
+        data = json.loads(resp.choices[0].message.content)
+        new_sched = data.get("proposed_schedule") or []
+        if not new_sched:
+            raise ValueError("空スケジュール")
+        plan["proposed_schedule"] = new_sched
+        plan["wake_time"] = now.strftime("%H:%M")
+        plan["comment"] = data.get("comment") or plan.get("comment", "")
+        plan["overslept"] = True
+        (WANI_DATA_DIR / "daily_plan.json").write_text(
+            json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        await ch.send(("🐊 寝坊ルートで組み直したのだ!\n" + format_plan_full(plan))[:1990])
     except Exception as e:
-        log.error(f"task suggestion error: {e}")
-        return ""
+        log.exception("寝坊リプランに失敗")
+        await ch.send(f"組み直しに失敗したのだ({e})。/plan を手動で調整してほしいのだ。")
 
 
 @tasks.loop(hours=24)
@@ -842,30 +909,71 @@ async def daily_briefing():
     if not ch:
         return
     now = datetime.now()
-    schedule = await fetch_today_schedule()
-    tasks_text = await wani_list_tasks()
-    # まず夜間に生成済みの当日プランを使う(LLM再呼び出しを節約)。無ければその場でLLM生成。
-    suggestion = load_daily_plan_text()
-    if not suggestion:
-        suggestion = await suggest_today_tasks(schedule, tasks_text)
-    msg = (
-        f"**おはようなのだ、こっこ! {now.strftime('%Y年%m月%d日')}なのだ。**\n\n"
-        f"**今日の予定**\n{schedule}\n\n"
-        f"**タスク**\n{tasks_text}"
-    )
-    if suggestion:
-        msg += f"\n\n**今日のおすすめ**\n{suggestion}"
-    await ch.send(msg[:2000])
+    plan = load_daily_plan_raw()
+    parts = [f"**おはようなのだ、こっこ! {now.strftime('%Y年%m月%d日')}なのだ。**"]
+    wline = _weather_line(plan.get("weather") if plan else None)
+    if wline:
+        parts.append(wline)
+    parts.append(format_plan_full(plan) if plan else "今日のプランはまだ無いのだ(夜間4時に作るのだ)。")
+    parts.append("_起きたら15分以内に 👀 を押すのだ! 押さないと寝坊とみなして予定を組み直すのだ。_")
+    msg = await ch.send("\n\n".join(parts)[:2000])
+    try:
+        await msg.add_reaction("👀")
+        asyncio.create_task(_await_wake_or_replan(msg, ch))
+    except discord.Forbidden:
+        pass  # リアクション権限が無ければ起床確認はスキップ
+
 
 @daily_briefing.before_loop
 async def before_briefing():
     await bot.wait_until_ready()
-    # 次の8:00まで待機
     from asyncio import sleep
+    from datetime import timedelta
     now = datetime.now()
-    target = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    target = now.replace(hour=BRIEFING_HOUR, minute=0, second=0, microsecond=0)
     if now >= target:
-        from datetime import timedelta
+        target += timedelta(days=1)
+    await sleep((target - now).total_seconds())
+
+
+# ---- 夜の振り返り（日記。毎日21時）----
+async def start_diary(ch):
+    """今日の達成状況を踏まえた振り返りの問いかけを投稿する(以降は通常会話で続く)。"""
+    now = datetime.now()
+    status = await wani_list_tasks()
+    prompt = (
+        f"今は{now.strftime('%H:%M')}、一日の終わりの振り返り(日記)の時間。以下は今日のタスク状況。\n"
+        f"{status}\n\n"
+        "これを踏まえ、こっこに親しみやすく短く('〜のだ'口調で)問いかけて。今日やったこと・"
+        "どうだったか・過去問をやったならその出来、を1〜2問だけ聞く。長くしない(120字以内)。"
+    )
+    try:
+        resp = await llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "system", "content": SYSTEM_INSTRUCTION},
+                      {"role": "user", "content": prompt}])
+        opening = resp.choices[0].message.content or ""
+    except Exception:
+        opening = ""
+    opening = opening or "今日はどうだったのだ? やったこと・気づき・過去問の出来を聞かせてほしいのだ!"
+    await ch.send("📔 " + opening)
+
+
+@tasks.loop(hours=24)
+async def evening_reflection():
+    ch = bot.get_channel(CHANNEL_CHAT or CHANNEL_NOTIFY)
+    if ch:
+        await start_diary(ch)
+
+
+@evening_reflection.before_loop
+async def before_reflection():
+    await bot.wait_until_ready()
+    from asyncio import sleep
+    from datetime import timedelta
+    now = datetime.now()
+    target = now.replace(hour=EVENING_REFLECT_HOUR, minute=0, second=0, microsecond=0)
+    if now >= target:
         target += timedelta(days=1)
     await sleep((target - now).total_seconds())
 
@@ -963,6 +1071,12 @@ async def plan_slash(interaction: discord.Interaction):
         await interaction.response.send_message("今日のプランがまだありません(夜間4時に生成されます)。")
         return
     await interaction.response.send_message(f"📋 **今日の作戦**\n{format_plan_full(plan)}"[:2000])
+
+
+@bot.tree.command(name="diary", description="今日の振り返り(日記)を始める。達成状況を見て質問される")
+async def diary_slash(interaction: discord.Interaction):
+    await interaction.response.send_message("📔 今日の振り返りをはじめるのだ!")
+    await start_diary(interaction.channel)
 
 
 @bot.tree.command(name="todos", description="今日の創出タスクをGoogle ToDoに登録(ワニ博士アプリで討伐)")

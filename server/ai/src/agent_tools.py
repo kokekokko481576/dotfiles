@@ -218,6 +218,27 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "save_diary",
+            "description": (
+                "その日の日記(振り返り)を保存する。夜の振り返りで、こっこが話した『今日やったこと・"
+                "気づき・気分・過去問の出来』などを1日分の短い記録にまとめて呼ぶ。1日1ファイル。"
+                "会話がひと段落したら呼ぶ(過去問の点数など進捗はこれとは別に update_progress でも記録する)。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string",
+                                "description": "その日の日記本文(こっこの発言を踏まえた3〜8行程度の要約)"},
+                    "mood": {"type": "string",
+                             "description": "その日の気分・調子(任意。例: 上々/普通/疲れた)"},
+                },
+                "required": ["content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_progress",
             "description": (
                 "管理中の領域(院試/研究/バイト等)の進捗を記録する。こっこが学習の進み具合・過去問の得点・"

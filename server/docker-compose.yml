@@ -255,8 +255,10 @@ services:
       # 3Bot共通のユーザープロフィール/大日程(リポジトリ内の単一ソース。read-only)。
       # 1箇所編集すれば task-agent/執事/ワニ 全部に反映される。
       - ./context/profile.md:/app/profile.md:ro
-      # 夜間生成の当日プラン(daily_plan.json)を朝ブリーフィングで読むためread-onlyマウント
-      - /mnt/data/ai/wani:/app/wani:ro
+      # 夜間生成の当日プラン(daily_plan.json)。朝ブリーフィングで読み、寝坊時は組み直して書き戻す
+      - /mnt/data/ai/wani:/app/wani
+      # 日記(/diary・夜の振り返り)の保存先
+      - /mnt/data/ai/diary:/app/diary
     env_file: .env
     environment:
       - TZ=Asia/Tokyo
