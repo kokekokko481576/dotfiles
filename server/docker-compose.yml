@@ -403,6 +403,11 @@ services:
       - LLM_MODEL=${WANI_LLM_MODEL:-gemini-2.5-flash-vertex}
       # 今日の固定予定を取得して空き時間に時間割を組むため(butler-botと同じWebhook)
       - N8N_TODAY_SCHEDULE_URL=${N8N_TODAY_SCHEDULE_URL:-http://n8n:5678/webhook/today-schedule}
+      # 未完了ToDoの取得(時間割へ組込み)と、繰り越した自動生成ToDoの削除(毎朝クリア)に使う
+      - N8N_TODOS_URL=${N8N_TODOS_URL:-http://n8n:5678/webhook/todos}
+      - N8N_TODO_DELETE_URL=${N8N_TODO_DELETE_URL:-http://n8n:5678/webhook/todo-delete}
+      # 見積りバッファ(本人は解くのが遅いので所要と時間割を1.5倍で組む)
+      - WANI_TIME_BUFFER=${WANI_TIME_BUFFER:-1.5}
     volumes:
       # waniアプリと共有するために、/mnt/data/ai/wani を /app/data にマウント
       - /mnt/data/ai/wani:/app/data

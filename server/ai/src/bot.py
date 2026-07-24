@@ -219,24 +219,64 @@ async def _todo_add(title: str, notes: str = "", due: str = "") -> tuple[bool, s
     return True, ""
 
 
+# job_generate_daily_plan.py と文字列一致必須。notes末尾に付けておくと、翌朝の再編ジョブが
+# 「討伐しきれず繰り越した自動生成ToDo」だけを判別して削除できる(手動追加ToDoには付けない)。
+AUTO_TODO_MARKER = "#wani-auto"
+
+# preferred_time(morning/afternoon/evening)→ 日本語ラベル。時間割に対応枠が無かったときの保険表示。
+_PT_LABEL = {"morning": "午前", "afternoon": "午後", "evening": "夜"}
+
+
+def _slot_for_task(title: str, schedule: list[dict]) -> tuple[str, str]:
+    """proposed_schedule(時間割)から、このタスクに対応する枠の開始・終了(HH:MM)を求める。
+    タイトル完全一致→部分一致の順で拾い、分割されて複数枠にまたがる場合は最初の開始〜最後の終了。"""
+    starts, ends = [], []
+    for s in schedule:
+        st = (s.get("title") or "").strip()
+        if not st:
+            continue
+        if st == title or title in st or st in title:
+            start = str(s.get("start") or "")[:5]
+            end = str(s.get("end") or "")[:5]
+            if start:
+                starts.append(start)
+            if end:
+                ends.append(end)
+    return (min(starts) if starts else ""), (max(ends) if ends else "")
+
+
 def build_todo_items(plan: dict) -> list[dict]:
     """daily_planのgenerated_tasks(創出タスク)をToDo項目に変換する。
-    GitHub picksは既にワニ博士アプリで扱えるのでToDo化しない(重複回避)。"""
+    GitHub picksは既にワニ博士アプリで扱えるのでToDo化しない(重複回避)。
+
+    Google Tasks APIは due の時刻を保存できない(日付のみ)ため、「いつ・何分やるか」は
+    タイトル先頭に時間帯を、notesに所要目安を埋め込んで見えるようにする。時刻は夜間生成した
+    proposed_schedule(時間割)の対応枠から引く。notes末尾に #wani-auto を付け、翌朝の再編で
+    未達の自動ToDoだけを削除できるようにする(手動追加ToDoには付けない)。"""
     today = datetime.now().strftime("%Y-%m-%d")
     due = f"{today}T00:00:00.000Z"
+    schedule = plan.get("proposed_schedule", [])
     items = []
     for t in plan.get("generated_tasks", []):
         title = (t.get("title") or "").strip()
         if not title:
             continue
+        start, end = _slot_for_task(title, schedule)
+        if start and end:
+            display_title = f"{start}-{end} {title}"
+        elif start:
+            display_title = f"{start}〜 {title}"
+        else:
+            # 時間割に対応枠が無いときは希望時間帯だけでも前置きする
+            pt = _PT_LABEL.get(str(t.get("preferred_time") or ""), "")
+            display_title = f"{pt} {title}".strip()
         parts = []
-        if t.get("reason"):
-            parts.append(t["reason"])
         if t.get("estimated_minutes"):
             parts.append(f"約{t['estimated_minutes']}分")
-        if t.get("preferred_time"):
-            parts.append(str(t["preferred_time"]))
-        items.append({"title": title, "notes": " ｜ ".join(parts), "due": due})
+        if t.get("reason"):
+            parts.append(t["reason"])
+        parts.append(AUTO_TODO_MARKER)
+        items.append({"title": display_title, "notes": " ｜ ".join(parts), "due": due})
     return items
 
 

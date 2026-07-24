@@ -41,6 +41,13 @@ N8N_TODAY_SCHEDULE_URL = os.environ.get(
     "N8N_TODAY_SCHEDULE_URL", "http://n8n:5678/webhook/today-schedule")
 # 未完了のGoogle ToDo。既にある「やること」を時間割に組み込む/重複生成しないために渡す。
 N8N_TODOS_URL = os.environ.get("N8N_TODOS_URL", "http://n8n:5678/webhook/todos")
+# 未完了ToDoの削除(討伐しきれず繰り越した自動生成ToDoを毎朝消して溜めないため)。
+N8N_TODO_DELETE_URL = os.environ.get("N8N_TODO_DELETE_URL", "http://n8n:5678/webhook/todo-delete")
+
+# 執事Bot(ai/src/bot.py)が自動生成ToDoの notes 末尾に付けるマーカー。これが付いた未完了ToDoは
+# 「前日以前に討伐しきれなかった自動タスク」なので、翌朝の再編時に削除して繰り越し候補として
+# 作り直す。手動で自分が追加したToDoには付かないので消さない。★bot.py側と文字列一致必須。
+AUTO_TODO_MARKER = "#wani-auto"
 
 
 def _fetch_today_events() -> list:
@@ -84,7 +91,10 @@ def _fetch_weather() -> dict | None:
 
 
 def _fetch_todos() -> list:
-    """未完了のGoogle ToDoを取得して{title,due,notes}に正規化する。失敗時は空。"""
+    """未完了のGoogle ToDoを取得して{id,title,due,notes}に正規化する。失敗時は空。
+
+    id は削除(自動生成ToDoの繰り越しクリア)に、notes は自動/手動の判別(AUTO_TODO_MARKER)に使う
+    ので、ここでは notes を丸めない。"""
     try:
         resp = requests.get(N8N_TODOS_URL, timeout=15)
         resp.raise_for_status()
@@ -97,11 +107,25 @@ def _fetch_todos() -> list:
             if not title:
                 continue
             due = t.get("due") or ""
-            out.append({"title": title, "due": due[:10], "notes": (t.get("notes") or "")[:100]})
+            out.append({"id": t.get("id") or "", "title": title,
+                        "due": due[:10], "notes": t.get("notes") or ""})
         return out
     except Exception as e:
         log.warning("ToDo取得に失敗(なし扱い): %s", e)
         return []
+
+
+def _delete_todo(task_id: str) -> bool:
+    """未完了のまま繰り越された自動生成ToDoをGoogle Tasksから削除する。失敗しても続行。"""
+    if not task_id:
+        return False
+    try:
+        resp = requests.post(N8N_TODO_DELETE_URL, json={"taskId": task_id}, timeout=15)
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        log.warning("ToDo削除に失敗(%s): %s", task_id, e)
+        return False
 
 
 def _read_json(path: str, default):
@@ -202,9 +226,16 @@ def main() -> int:
         calendar_events = _fetch_today_events()
         log.info("今日の固定予定を%d件取得", len(calendar_events))
 
-        # 既存の未完了ToDo(時間割に組み込む・重複生成しない)
-        existing_todos = _fetch_todos()
-        log.info("未完了ToDoを%d件取得", len(existing_todos))
+        # 既存の未完了ToDoを取得し、自動生成の未達分と手動追加分に振り分ける。
+        #   - 自動生成の未達(#wani-auto付き) = 昨日までに討伐しきれなかったもの。
+        #     一旦削除して溜めず、「繰り越し候補」として今日のプランに現実的な分量で作り直させる。
+        #   - 手動追加(マーカー無し) = 本人が自分で入れたToDo。消さずに時間割へ組み込む。
+        raw_todos = _fetch_todos()
+        carried_over = [t for t in raw_todos if AUTO_TODO_MARKER in (t.get("notes") or "")]
+        existing_todos = [t for t in raw_todos if AUTO_TODO_MARKER not in (t.get("notes") or "")]
+        deleted = sum(1 for t in carried_over if _delete_todo(t.get("id", "")))
+        log.info("未完了ToDo: 手動%d件は保持 / 自動生成の未達%d件を削除(繰り越し候補, 削除成功%d件)",
+                 len(existing_todos), len(carried_over), deleted)
 
         # 今日の天気(雨なら登校を多めに取る等の判断に使う)
         weather = _fetch_weather()
@@ -216,6 +247,7 @@ def main() -> int:
             github_items=github_items,
             calendar_events=calendar_events,
             existing_todos=existing_todos,
+            carried_over=carried_over,
             weather=weather,
         )
 

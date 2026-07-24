@@ -146,6 +146,10 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.5-flash-vertex")
 # (litellmは body の timeout でグローバル設定を上書きできる)。
 _JUDGE_TIMEOUT = int(os.environ.get("JUDGE_LLM_TIMEOUT", "90"))
 
+# 本人は問題(特に過去問・演習)を解くのに時間がかかるので、見積り・時間割に一律の余裕(バッファ)を
+# 持たせる。素の想定所要のこの倍率でestimated_minutes/時間割を組むようLLMに指示する。
+_TIME_BUFFER = float(os.environ.get("WANI_TIME_BUFFER", "1.5"))
+
 
 def _gemini_chat_json(prompt: str) -> dict:
     resp = requests.post(
@@ -331,6 +335,7 @@ def _iso_hm(v) -> str:
 
 def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
                         existing_todos: list[dict] | None = None,
+                        carried_over: list[dict] | None = None,
                         weather: dict | None = None) -> dict:
     """
     GitHub issue・カレンダー・既存ToDo・進捗ステート(projects)・生活リズムを元に、その日の計画を作る。
@@ -377,6 +382,17 @@ def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
 
 """ if projects_text else ""
 
+    # 昨日までにToDo化したが討伐しきれず繰り越したタスク(job側で削除済み)。今日のプランで
+    # 現実的な分量に絞って作り直させる。重複禁止の対象外(=積極的に再掲してよい)。
+    carried_text = "\n".join(f"- {t.get('title')}" for t in (carried_over or []))
+    carried_block = f"""【昨日までにToDo化したが討伐しきれず繰り越したタスク(削除済み)】
+{carried_text}
+これらは「未完了で繰り越し」の扱い。今日も必要なら generated_tasks に作り直してよい
+(下の重複禁止ルールの対象外=再掲OK)。ただし終わらなかった事実を踏まえ、範囲を欲張らず
+現実的な分量に絞ること。もう不要と判断したものは無理に入れなくてよい。
+
+""" if carried_text else ""
+
     deadline = _next_deadline(datetime.now().date())
     deadline_block = ""
     if deadline:
@@ -387,7 +403,7 @@ def generate_daily_plan(github_items: list[dict], calendar_events: list[dict],
             f"(締切が近いほど演習・総仕上げに寄せ、遠いなら基礎固めでよい)。\n\n"
         )
 
-    prompt = f"""{_context_blocks()}{deadline_block}{weather_block}{projects_block}あなたは個人のタスク管理アシスタント「ワニ博士」です。
+    prompt = f"""{_context_blocks()}{deadline_block}{weather_block}{projects_block}{carried_block}あなたは個人のタスク管理アシスタント「ワニ博士」です。
 今日1日の計画を、次の3つを含めて立ててください。
 
 A) GitHubタスクの選抜(picks): 下の候補から今日やるべきものを番号で選ぶ(0〜5件)。
@@ -415,8 +431,14 @@ C) 時間割(proposed_schedule): 起床(wake_time)から就寝までを、下の
     振り返りは作らない。
   ・起床の分岐条件(何時までに起きたら何をする等)に従って朝の並びを決める。
   枠が足りない場合は優先度の低いタスクを削って調整し、上記(日課の所要時間・振り返り)は削らない。
+- **見積りは甘くしない(重要)**。本人は問題(特に過去問・演習)を解くのに時間がかかる。各タスクの
+  estimated_minutes は素の想定より **約{_TIME_BUFFER:g}倍** に増やし、時間割(proposed_schedule)も
+  その増やした所要時間で組む。枠と枠は余裕を持たせ、1日を予定でびっしり埋めない
+  (終わらないToDoは翌朝に繰り越されて溜まるため、少なめ・現実的に置く方がよい)。
 - **数日先を見越してゆとりを持たせる**。締切までの残り日数を踏まえ、今日1日に全部を詰め込まない。
   毎日すべてを網羅しようとせず、日ごとに重点科目を変えてよい(残り日数に対して無理のない分量に)。
+- **時間割の各枠のtitleは、対応するA/Bのタスクや既存ToDoのtitleと極力一致させる**
+  (後段がタイトル前方一致で「そのタスクをいつ・何分やるか」をToDoに転記するため。ずれると時刻が付かない)。
 - **時間割は重複させない**。特に移動(登校・帰宅)と勉強を同じ時間帯に重ねない。帰宅は勉強の後に置く。
 - きれいに収まらない/半端な空きになる場合は、タスクを固定予定(夕食など)をまたいで分割してよい
   (その場合も日課の合計所要時間は減らさない)。就寝時刻を大きく超えそうなら低優先タスクを削る。
