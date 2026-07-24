@@ -122,6 +122,9 @@ AGENT_MODE_INSTRUCTION = (
     "どうだった?過去問の出来は?』と親しみやすく短く問いかけ、会話する。こっこの返答から過去問の"
     "点数・学習到達度・弱点など進捗が出たら update_progress で該当領域(院試等)に記録し、"
     "話がひと段落したら save_diary でその日の日記を保存する(1日分を数行に要約)。"
+    "日記は update_progress とは別物なので、進捗を記録した日も**会話の終わりに必ず save_diary を"
+    "呼ぶ**こと(こっこが『おやすみ』等で切り上げる素振り・話題転換の前も同様)。呼ばないとその日の"
+    "記録が残らない。"
 )
 
 # 夜間(task-agent daily-plan)が生成した当日プラン。butlerの朝ブリーフィングもこれを読んで、
@@ -804,6 +807,11 @@ async def on_ready():
         daily_briefing.start()
     if not evening_reflection.is_running():
         evening_reflection.start()
+    if not diary_flush.is_running():
+        diary_flush.start()
+    # 再起動耐性: 起動時に「今日の日記がまだ無く、通常フロー(21時問いかけ/23:50フラッシュ)を
+    # 過ぎている」なら取り戻す。21時以降の再起動でその日の記録が飛ぶのを防ぐ。
+    asyncio.create_task(_diary_catch_up())
     # スラッシュコマンドをギルドに同期(ギルド単位は即時反映。グローバルは反映に最大1時間)
     try:
         bot.tree.copy_global_to(guild=GUILD_OBJ)
@@ -1013,6 +1021,119 @@ async def before_reflection():
     from datetime import timedelta
     now = datetime.now()
     target = now.replace(hour=EVENING_REFLECT_HOUR, minute=0, second=0, microsecond=0)
+    if now >= target:
+        target += timedelta(days=1)
+    await sleep((target - now).total_seconds())
+
+
+# ---- 日記の確実な保存(フォールバック)----
+# 日記は本来「21時の問いかけ→会話→save_diary」で残るが、(1)会話したのにモデルがsave_diaryを
+# 呼び忘れる (2)無応答 (3)21時以降のBot再起動でその日の問いかけが飛ぶ、のいずれでも記録が静かに
+# 欠落する。そこで毎晩フラッシュ時刻に「今日の日記がまだ無ければ、その日のupdate_progressログ＋
+# タスク状況から自動生成して保存」する保険を置く。会話で保存済みなら何もしない(手書きが常に優先)。
+DIARY_FLUSH_HOUR = int(os.environ.get("DIARY_FLUSH_HOUR", "23"))
+DIARY_FLUSH_MIN = int(os.environ.get("DIARY_FLUSH_MIN", "50"))
+
+
+def _today_diary_path() -> Path:
+    return DIARY_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.md"
+
+
+def _todays_progress_notes() -> list[str]:
+    """今日のupdate_progress記録(=会話で話した内容)を「[領域] ノート」の文字列一覧で返す。"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    out = []
+    try:
+        with open(AGENT_AUDIT_LOG, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("tool") == "update_progress" and str(r.get("ts", "")).startswith(today):
+                    a = r.get("args", {})
+                    note = (a.get("note") or "").strip()
+                    if note:
+                        out.append(f"[{a.get('domain') or '?'}] {note}")
+    except FileNotFoundError:
+        pass
+    return out
+
+
+async def flush_diary(ch=None) -> bool:
+    """今日の日記がまだ無ければ、今日のupdate_progressログ＋タスク状況から自動生成して保存する。
+    既に保存済みなら何もしない(手書き優先)。保存したらTrueを返す。"""
+    if _today_diary_path().exists():
+        return False
+    notes = _todays_progress_notes()
+    status = await wani_list_tasks()
+    material = ("今日話した進捗:\n" + "\n".join(notes)) if notes else "(会話での進捗記録なし)"
+    prompt = (
+        "一日の終わりに、こっこの今日の日記を数行で書いて(本人視点・親しみやすい'〜のだ'口調)。"
+        "誇張や創作はせず、下の素材に書かれた事実だけを使う。素材が乏しければ短くてよい。\n\n"
+        f"【今日のタスク状況】\n{status}\n\n【素材】\n{material}"
+    )
+    content = ""
+    try:
+        resp = await llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "system", "content": SYSTEM_INSTRUCTION},
+                      {"role": "user", "content": prompt}])
+        content = (resp.choices[0].message.content or "").strip()
+    except Exception:
+        log.exception("日記の自動生成に失敗")
+    if not content:
+        # LLMが使えなくても記録は残す(素材の素直な列挙)
+        content = "自動記録なのだ。\n" + (
+            "\n".join(f"- {n}" for n in notes) if notes else "特筆事項なし。")
+    content += "\n\n※ 会話からsave_diaryが呼ばれなかったため自動保存したのだ(編集可)。"
+    save_diary_entry(content)
+    if ch:
+        try:
+            await ch.send("📔 今日の日記を自動保存したのだ(会話から拾えたぶん。編集OK)。")
+        except Exception:
+            pass
+    return True
+
+
+async def _diary_catch_up():
+    """起動時の取り戻し。今日の日記が無い場合のみ、
+    - フラッシュ時刻を過ぎている → 即フラッシュ(自動保存)
+    - 振り返り時刻〜フラッシュ時刻 → 今夜の問いかけを1回出す。"""
+    try:
+        if _today_diary_path().exists():
+            return
+        ch = bot.get_channel(CHANNEL_CHAT or CHANNEL_NOTIFY)
+        if not ch:
+            return
+        now = datetime.now()
+        if (now.hour, now.minute) >= (DIARY_FLUSH_HOUR, DIARY_FLUSH_MIN):
+            await flush_diary(ch)
+        elif now.hour >= EVENING_REFLECT_HOUR:
+            await start_diary(ch)
+    except Exception:
+        log.exception("diary catch-up 失敗")
+
+
+@tasks.loop(hours=24)
+async def diary_flush():
+    ch = bot.get_channel(CHANNEL_CHAT or CHANNEL_NOTIFY)
+    try:
+        await flush_diary(ch)
+    except Exception:
+        log.exception("diary_flush 失敗")
+
+
+@diary_flush.before_loop
+async def before_flush():
+    await bot.wait_until_ready()
+    from asyncio import sleep
+    from datetime import timedelta
+    now = datetime.now()
+    target = now.replace(hour=DIARY_FLUSH_HOUR, minute=DIARY_FLUSH_MIN, second=0, microsecond=0)
     if now >= target:
         target += timedelta(days=1)
     await sleep((target - now).total_seconds())
