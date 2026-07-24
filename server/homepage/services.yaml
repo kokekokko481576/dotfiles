@@ -28,3 +28,29 @@
         description: 死活監視
         siteMonitor: http://kokko-server-pavilion:3001
         icon: uptime-kuma.png
+
+    - Vaultwarden:
+        href: https://kokko-server-pavilion.tailed0412.ts.net:8444
+        description: パスワード管理
+        # ポートは127.0.0.1のみ公開(tailscale serve経由)のため、外部URLではなく
+        # 同一Dockerネットワーク内のコンテナ名で死活監視する
+        siteMonitor: http://vaultwarden
+        icon: vaultwarden.png
+
+    - Miniflux:
+        href: http://kokko-server-pavilion:8223
+        description: RSSリーダー
+        siteMonitor: http://kokko-server-pavilion:8223
+        icon: miniflux.png
+
+    - Karakeep:
+        href: http://kokko-server-pavilion:3030
+        description: AIブックマーク管理
+        siteMonitor: http://kokko-server-pavilion:3030
+        icon: karakeep.png
+
+    - Paperless-ngx:
+        href: http://kokko-server-pavilion:8000
+        description: 書類管理・OCR全文検索
+        siteMonitor: http://kokko-server-pavilion:8000
+        icon: paperless-ngx.png

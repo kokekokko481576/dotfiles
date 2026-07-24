@@ -207,6 +207,28 @@ OLLAMA_HOST=0.0.0.0 ollama serve
 
 OpenWebUI の `OPENAI_API_BASE_URL` を `http://gpu-pc:11434/v1` に変更するだけで切替完了。
 
+### Vaultwarden・Miniflux・Karakeep・Paperless-ngx（2026-07-24追加、定番セルフホストサービス4種）
+
+「よくある人気のサーバーの使い方でまだ実装していないもの」という依頼を受け、寝ている間に
+自律導入。手順詳細はそれぞれの guide を参照。
+
+| サービス | 用途 | イメージ | アクセス | 手順書 |
+|---------|------|---------|---------|--------|
+| Vaultwarden | パスワード管理(Bitwarden互換) | `vaultwarden/server:latest` | `https://kokko-server-pavilion.tailed0412.ts.net:8444`(tailscale serve経由。WebAuthn等がHTTPS必須のため) | `guide/18_vaultwarden設定.md` |
+| Miniflux | RSSリーダー | `miniflux/miniflux:latest` + 専用`postgres:18` | `http://kokko-server-pavilion:8223` | `guide/19_miniflux設定.md` |
+| Karakeep | AIブックマーク(自動タグ付け・要約) | `karakeep-app/karakeep` + alpine-chrome + meilisearch | `http://kokko-server-pavilion:3030` | `guide/20_karakeep設定.md` |
+| Paperless-ngx | 書類管理+OCR全文検索 | `paperless-ngx/paperless-ngx` + 専用`postgres:18` + valkey | `http://kokko-server-pavilion:8000` | `guide/21_paperless設定.md` |
+
+- Miniflux・Paperlessは、Immichの`database`(pgvector拡張入りの特殊イメージ)を共用せず、
+  それぞれ専用の軽量`postgres:18`コンテナを持つ(RAM増分は実測で1コンテナ20〜50MB程度と軽微)。
+- KarakeepのAIタグ付け・要約は既存Ollama(`http://ollama:11434`, task-agentと共用)をそのまま
+  使い回しており、追加のAPIキー・追加コストは無し。
+- Vaultwarden以外は全てNavidrome等と同じ「ポート公開+ufw default-deny+Tailscale内のみ到達可」
+  パターン。Vaultwardenのみ`127.0.0.1`ローカルバインド+`tailscale serve`でHTTPS化(n8nと同じ手法)。
+- 導入時、このマシンは元々RAM/swapが逼迫気味だったため(下記リソース目安・`09_improvements.md`
+  セクション1参照)、導入前に`zram-tools`(zstd圧縮スワップ、`PERCENT=50`)を追加して安全マージンを
+  確保してから4サービスを1つずつ起動・安定確認しながら導入した。
+
 ## リソース使用量の目安（Phase 1計画時点の見積もり）
 
 | サービス | RAM 目安 |

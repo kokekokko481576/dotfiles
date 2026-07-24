@@ -507,6 +507,181 @@ services:
     restart: always
     mem_limit: 256m
 
+  # ================================================================
+  # Vaultwarden — パスワード管理(Bitwarden互換サーバー)
+  # アクセス: https://kokko-server-pavilion.tailed0412.ts.net:8444
+  # (WebAuthn・ブラウザ拡張機能の自動入力がHTTPS必須のため、n8nと同じ
+  #  tailscale serve 経由でHTTPS化する。手順: guide/18_vaultwarden設定.md)
+  # ================================================================
+  vaultwarden:
+    container_name: vaultwarden
+    image: vaultwarden/server:latest
+    volumes:
+      - /mnt/data/vaultwarden:/data
+    environment:
+      - DOMAIN=https://kokko-server-pavilion.tailed0412.ts.net:8444
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+      # 初回に自分のアカウントを作成したら false に変更すること(guide参照)
+      - SIGNUPS_ALLOWED=${VAULTWARDEN_SIGNUPS_ALLOWED:-true}
+    ports:
+      # tailscale serveの中継先のみ。tailnet外は勿論、tailnet内からもポート直打ちさせない
+      - "127.0.0.1:8222:80"
+    restart: always
+    mem_limit: 128m
+
+  # ================================================================
+  # Miniflux — RSSリーダー
+  # アクセス: http://kokko-server-pavilion:8223
+  # ================================================================
+  miniflux-db:
+    container_name: miniflux_db
+    image: postgres:18
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=${MINIFLUX_DB_PASSWORD}
+      - POSTGRES_DB=miniflux
+    volumes:
+      - /mnt/data/miniflux-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    mem_limit: 256m
+
+  miniflux:
+    container_name: miniflux
+    image: miniflux/miniflux:latest
+    ports:
+      - "8223:8080"
+    environment:
+      - DATABASE_URL=postgres://miniflux:${MINIFLUX_DB_PASSWORD}@miniflux-db/miniflux?sslmode=disable
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=${MINIFLUX_ADMIN_USERNAME:-kokko}
+      - ADMIN_PASSWORD=${MINIFLUX_ADMIN_PASSWORD}
+      - TZ=Asia/Tokyo
+    depends_on:
+      miniflux-db:
+        condition: service_healthy
+    restart: always
+    mem_limit: 256m
+
+  # ================================================================
+  # Karakeep — AIブックマーク管理(URL保存→Ollamaで自動タグ付け・要約)
+  # アクセス: http://kokko-server-pavilion:3030
+  # ================================================================
+  karakeep-chrome:
+    container_name: karakeep_chrome
+    image: gcr.io/zenika-hub/alpine-chrome:124
+    restart: unless-stopped
+    command:
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --hide-scrollbars
+      - --disable-blink-features=AutomationControlled
+      - --window-size=1440,900
+    mem_limit: 384m
+
+  karakeep-meilisearch:
+    container_name: karakeep_meilisearch
+    image: getmeili/meilisearch:v1.41.0
+    environment:
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${KARAKEEP_MEILI_MASTER_KEY}
+    volumes:
+      - /mnt/data/karakeep/meilisearch:/meili_data
+    restart: unless-stopped
+    mem_limit: 512m
+
+  karakeep:
+    container_name: karakeep
+    image: ghcr.io/karakeep-app/karakeep:release
+    ports:
+      - "3030:3000"
+    volumes:
+      - /mnt/data/karakeep/data:/data
+    environment:
+      - DATA_DIR=/data
+      - MEILI_ADDR=http://karakeep-meilisearch:7700
+      - MEILI_MASTER_KEY=${KARAKEEP_MEILI_MASTER_KEY}
+      - BROWSER_WEB_URL=http://karakeep-chrome:9222
+      - NEXTAUTH_URL=http://kokko-server-pavilion:3030
+      - NEXTAUTH_SECRET=${KARAKEEP_NEXTAUTH_SECRET}
+      # 自動タグ付け・要約は既存Ollama(task-agentと共用)を使い回す(追加コスト無し)
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - INFERENCE_TEXT_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+    depends_on:
+      - karakeep-chrome
+      - karakeep-meilisearch
+    restart: unless-stopped
+    mem_limit: 512m
+
+  # ================================================================
+  # Paperless-ngx — 書類管理(PDF/スキャンをOCRして全文検索)
+  # アクセス: http://kokko-server-pavilion:8000
+  # ================================================================
+  paperless-broker:
+    container_name: paperless_broker
+    image: docker.io/valkey/valkey:9-alpine
+    volumes:
+      - /mnt/data/paperless/redis:/data
+    restart: unless-stopped
+    mem_limit: 128m
+
+  paperless-db:
+    container_name: paperless_db
+    image: postgres:18
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - /mnt/data/paperless-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 384m
+
+  paperless:
+    container_name: paperless
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - /mnt/data/paperless/data:/usr/src/paperless/data
+      - /mnt/data/paperless/media:/usr/src/paperless/media
+      - /mnt/data/paperless/export:/usr/src/paperless/export
+      - /mnt/data/paperless/consume:/usr/src/paperless/consume
+    environment:
+      - PAPERLESS_REDIS=redis://paperless-broker:6379
+      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_DBENGINE=postgresql
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASSWORD}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER:-kokko}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
+      - PAPERLESS_TIME_ZONE=Asia/Tokyo
+      - USERMAP_UID=1000
+      - USERMAP_GID=1000
+      # 既定(英独伊西仏)に加えて日本語OCRを追加インストール
+      - PAPERLESS_OCR_LANGUAGE=jpn
+      - PAPERLESS_OCR_LANGUAGES=jpn
+    depends_on:
+      - paperless-db
+      - paperless-broker
+    restart: unless-stopped
+    mem_limit: 1g
+
 volumes:
   pgdata:
   model-cache:

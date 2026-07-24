@@ -19,10 +19,18 @@ DUMP_DIR="/mnt/data/backup/db-dumps"
 STAGING_DIR="/mnt/data/backup/docker-volumes-staging"
 mkdir -p "$DUMP_DIR" "$STAGING_DIR"
 
-echo "=== [1/4] PostgreSQL(Immich)のダンプ ==="
+echo "=== [1/4] PostgreSQLのダンプ ==="
 docker exec immich_postgres pg_dump -U "${DB_USERNAME:-immich}" "${DB_DATABASE_NAME:-immich}" \
-  > "$DUMP_DIR/immich_latest.sql" || { echo "!! pg_dump失敗、中断"; exit 1; }
+  > "$DUMP_DIR/immich_latest.sql" || { echo "!! immich pg_dump失敗、中断"; exit 1; }
 echo "  -> $DUMP_DIR/immich_latest.sql ($(du -h "$DUMP_DIR/immich_latest.sql" | cut -f1))"
+
+docker exec miniflux_db pg_dump -U miniflux miniflux \
+  > "$DUMP_DIR/miniflux_latest.sql" || { echo "!! miniflux pg_dump失敗、中断"; exit 1; }
+echo "  -> $DUMP_DIR/miniflux_latest.sql ($(du -h "$DUMP_DIR/miniflux_latest.sql" | cut -f1))"
+
+docker exec paperless_db pg_dump -U paperless paperless \
+  > "$DUMP_DIR/paperless_latest.sql" || { echo "!! paperless pg_dump失敗、中断"; exit 1; }
+echo "  -> $DUMP_DIR/paperless_latest.sql ($(du -h "$DUMP_DIR/paperless_latest.sql" | cut -f1))"
 
 echo "=== [2/4] Dockerボリュームをステージング領域へコピー ==="
 # /var/lib/docker/volumes は root所有で一般ユーザーから読めないため、
@@ -44,6 +52,10 @@ restic backup \
   /mnt/data/documents \
   /mnt/data/immich \
   /mnt/data/ai \
+  /mnt/data/vaultwarden \
+  /mnt/data/karakeep \
+  /mnt/data/paperless/data \
+  /mnt/data/paperless/media \
   /mnt/data/backup/db-dumps \
   "$STAGING_DIR" \
   "$SERVER_DIR/.env" \
